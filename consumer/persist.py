@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 
 from common.db import connect
-from common.message import USGS
+from common.sources import USGS
 from consumer.duplicates import is_duplicate, lock_matching, merge_duplicates
 from consumer.geo import assign_country
 

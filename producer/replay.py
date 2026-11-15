@@ -9,7 +9,8 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import TopicAlreadyExistsError
 
 from common.db import connect
-from common.message import EMSC, build_message
+from common.message import build_message
+from common.sources import SECONDARY_IDS
 from producer.main import BOOTSTRAP
 
 log = logging.getLogger("replay")
@@ -37,11 +38,11 @@ def load_events(limit: int) -> list[dict]:
             SELECT event_id, mag, mag_type, place, depth_km, longitude, latitude,
                    event_time, updated, payload_json
             FROM evento_version
-            WHERE source <> %s
+            WHERE NOT (source = ANY(%s))
             ORDER BY event_time ASC
             LIMIT %s
             """,
-            (EMSC, limit),
+            (SECONDARY_IDS, limit),
         ).fetchall()
     events = []
     for row in rows:

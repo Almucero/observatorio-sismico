@@ -29,9 +29,9 @@ docker compose logs -f producer consumer api
 
 Datos: volumen Docker `pgdata` (sobrevive a reinicios). Parar: `docker compose down` (sin `-v` conserva PG).
 
-### Segunda fuente (ampliación opcional)
+### Fuentes adicionales (ampliación opcional)
 
-El productor consulta también el catálogo de EMSC para cubrir los terremotos pequeños de fuera de EE. UU. que el feed de USGS no publica; el consumidor detecta los que ya llegaron por USGS y no los duplica (memoria §10). Con `EMSC_ENABLED=false` en `.env` solo se usa USGS.
+El productor puede consultar también GeoNet, NRCan, USP, KAGSR, EMSC e ISC para cubrir zonas que el feed de USGS deja casi vacías; el consumidor unifica los avisos del mismo terremoto (memoria §10). Por defecto el panel muestra solo USGS. Con `EXTRA_SOURCES=` vacío en `.env` el productor solo consulta USGS.
 
 Una base creada antes de esta ampliación necesita la migración una vez (las nuevas la aplican solas):
 
@@ -62,7 +62,8 @@ npm start
 ## Histórico y replay
 
 ```bash
-docker compose run --rm --no-deps producer python -m producer.history --year 2025 --min-mag 4
+docker compose run --rm --no-deps producer python -m producer.history --source usgs --year 2025 --min-mag 4
+# Otras fuentes (opcional): --source emsc|isc|geonet|nrcan|usp|kagsr
 docker compose run --rm --no-deps producer python -m producer.replay --limit 50 --speed 60
 ```
 

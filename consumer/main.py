@@ -5,7 +5,7 @@ import os
 
 from aiokafka import AIOKafkaConsumer
 
-from common.message import USGS, event_id_of
+from common.sources import read_event
 from consumer.persist import persist_event, quarantine
 from consumer.validate import parse_event
 
@@ -58,7 +58,7 @@ async def consume() -> None:
                 schema = _schema_for(mode)
                 record, reason = parse_event(payload)
                 if reason:
-                    event_id = event_id_of(payload.get("event") or {}, payload.get("source") or USGS)
+                    event_id = read_event(payload.get("event") or {}, payload.get("source"))["id"]
                     quarantine(event_id, reason, payload, schema=schema)
                     log.info("quarantine schema=%s reason=%s id=%s", schema, reason, event_id)
                     await consumer.commit()

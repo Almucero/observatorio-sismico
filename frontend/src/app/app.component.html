@@ -73,11 +73,9 @@
                 <dt>Último acceso a la API</dt>
                 <dd>{{ lastRead() }}</dd>
               </div>
-              <div
-                data-tip="Última vez que el sistema descargó terremotos de USGS, el servicio geológico de EE. UU. y fuente principal de los datos. Si se retrasa, lo que ves puede estar desactualizado."
-              >
-                <dt>Última ingesta de USGS</dt>
-                <dd>{{ lastIngestion() }}</dd>
+              <div [attr.data-tip]="ingestion().tip">
+                <dt>{{ ingestion().label }}</dt>
+                <dd>{{ ingestion().value }}</dd>
               </div>
               <div
                 data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria."
@@ -125,24 +123,25 @@
                   placeholder="Todas"
                 />
               </label>
-              <label>
-                País (código)
-                <input
-                  type="text"
+              <div class="field">
+                País
+                <app-dropdown
+                  label="País"
+                  [options]="countryOptions()"
                   [value]="countryId()"
-                  (change)="onCountry($event)"
-                  placeholder="ESP"
-                  maxlength="12"
+                  [searchable]="true"
+                  (valueChange)="countryId.set($event)"
                 />
-              </label>
-              <label>
+              </div>
+              <div class="field">
                 Fuente
-                <select [value]="source()" (change)="onSource($event)">
-                  <option value="">Todas</option>
-                  <option value="usgs">USGS</option>
-                  <option value="emsc">EMSC</option>
-                </select>
-              </label>
+                <app-dropdown
+                  label="Fuente de los datos"
+                  [options]="sourceOptions()"
+                  [value]="source()"
+                  (valueChange)="source.set($event)"
+                />
+              </div>
             </div>
             <div class="actions">
               <button type="button" class="ghost" (click)="clearFilters()">Limpiar</button>
@@ -190,7 +189,7 @@
               </div>
               <div class="tile" [class.limited]="!stats().comparable" [attr.data-tip]="stats().refTip">
                 <b>{{ stats().ref2025 }}</b>
-                <span>{{ stats().comparable ? 'Media 2025' : '2025 · M≥4' }}</span>
+                <span>{{ stats().refLabel }}</span>
               </div>
             </div>
 
@@ -285,7 +284,7 @@
               <thead>
                 <tr>
                   <th data-tip="Magnitud del terremoto. ND significa que la fuente no la ha publicado.">Mag.</th>
-                  <th data-tip="Lugar según la fuente (USGS o EMSC); debajo, el país asignado y la hora en tu zona horaria.">
+                  <th data-tip="Lugar según la fuente del dato; debajo, el país asignado y la hora en tu zona horaria.">
                     Lugar
                   </th>
                   <th

@@ -3,7 +3,10 @@
     {
       "caso": "emsc_solo_se_muestra",
       "evento_actual": [
-        "emsc:test-dup-a-e"
+        "emsc:test-dup-a-emsc"
+      ],
+      "magnitudes": [
+        4.3
       ],
       "versiones": 1,
       "duplicados": [],
@@ -12,13 +15,17 @@
     {
       "caso": "usgs_llega_despues_y_sustituye",
       "evento_actual": [
-        "test-dup-a-u"
+        "test-dup-a-usgs"
+      ],
+      "magnitudes": [
+        4.5
       ],
       "versiones": 2,
       "duplicados": [
         {
-          "event_id": "emsc:test-dup-a-e",
-          "principal": "test-dup-a-u",
+          "event_id": "emsc:test-dup-a-emsc",
+          "principal": "test-dup-a-usgs",
+          "source": "emsc",
           "distancia_km": 11.1,
           "diferencia_s": 5.0
         }
@@ -28,13 +35,17 @@
     {
       "caso": "emsc_llega_despues_y_no_se_muestra",
       "evento_actual": [
-        "test-dup-b-u"
+        "test-dup-b-usgs"
+      ],
+      "magnitudes": [
+        4.5
       ],
       "versiones": 2,
       "duplicados": [
         {
-          "event_id": "emsc:test-dup-b-e",
-          "principal": "test-dup-b-u",
+          "event_id": "emsc:test-dup-b-emsc",
+          "principal": "test-dup-b-usgs",
+          "source": "emsc",
           "distancia_km": 9.1,
           "diferencia_s": 3.0
         }
@@ -44,13 +55,17 @@
     {
       "caso": "reenvio_no_cambia_nada",
       "evento_actual": [
-        "test-dup-b-u"
+        "test-dup-b-usgs"
+      ],
+      "magnitudes": [
+        4.5
       ],
       "versiones": 2,
       "duplicados": [
         {
-          "event_id": "emsc:test-dup-b-e",
-          "principal": "test-dup-b-u",
+          "event_id": "emsc:test-dup-b-emsc",
+          "principal": "test-dup-b-usgs",
+          "source": "emsc",
           "distancia_km": 9.1,
           "diferencia_s": 3.0
         }
@@ -60,13 +75,17 @@
     {
       "caso": "revision_del_duplicado_solo_guarda_version",
       "evento_actual": [
-        "test-dup-b-u"
+        "test-dup-b-usgs"
+      ],
+      "magnitudes": [
+        4.5
       ],
       "versiones": 3,
       "duplicados": [
         {
-          "event_id": "emsc:test-dup-b-e",
-          "principal": "test-dup-b-u",
+          "event_id": "emsc:test-dup-b-emsc",
+          "principal": "test-dup-b-usgs",
+          "source": "emsc",
           "distancia_km": 9.1,
           "diferencia_s": 3.0
         }
@@ -76,18 +95,46 @@
     {
       "caso": "misma_hora_a_500_km_son_dos",
       "evento_actual": [
-        "emsc:test-dup-c-e",
-        "test-dup-c-u"
+        "emsc:test-dup-c-emsc",
+        "test-dup-c-usgs"
+      ],
+      "magnitudes": [
+        4.3,
+        4.5
       ],
       "versiones": 2,
       "duplicados": [],
       "ok": true
     },
     {
+      "caso": "misma_hora_a_150_km_es_el_mismo",
+      "evento_actual": [
+        "test-dup-k-usgs"
+      ],
+      "magnitudes": [
+        4.5
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-k-emsc",
+          "principal": "test-dup-k-usgs",
+          "source": "emsc",
+          "distancia_km": 150.6,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
       "caso": "mismo_lugar_90_s_despues_son_dos",
       "evento_actual": [
-        "emsc:test-dup-d-e",
-        "test-dup-d-u"
+        "emsc:test-dup-d-emsc",
+        "test-dup-d-usgs"
+      ],
+      "magnitudes": [
+        4.3,
+        4.5
       ],
       "versiones": 2,
       "duplicados": [],
@@ -96,6 +143,200 @@
     {
       "caso": "emsc_no_terremoto_a_cuarentena",
       "motivo": "tipo_excluido:kx",
+      "ok": true
+    },
+    {
+      "caso": "emsc_sustituye_a_isc",
+      "evento_actual": [
+        "emsc:test-dup-f-emsc"
+      ],
+      "magnitudes": [
+        4.3
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "isc:test-dup-f-isc",
+          "principal": "emsc:test-dup-f-emsc",
+          "source": "isc",
+          "distancia_km": 11.1,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "usgs_hereda_los_avisos_de_emsc",
+      "evento_actual": [
+        "test-dup-f-usgs"
+      ],
+      "magnitudes": [
+        4.5
+      ],
+      "versiones": 3,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-f-emsc",
+          "principal": "test-dup-f-usgs",
+          "source": "emsc",
+          "distancia_km": 11.1,
+          "diferencia_s": 3.0
+        },
+        {
+          "event_id": "isc:test-dup-f-isc",
+          "principal": "test-dup-f-usgs",
+          "source": "isc",
+          "distancia_km": 11.1,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "agencia_regional_sustituye_a_emsc",
+      "evento_actual": [
+        "geonet:test-dup-g-geonet"
+      ],
+      "magnitudes": [
+        4.2
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-g-emsc",
+          "principal": "geonet:test-dup-g-geonet",
+          "source": "emsc",
+          "distancia_km": 8.5,
+          "diferencia_s": 2.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "isc_llega_despues_y_no_se_muestra",
+      "evento_actual": [
+        "geonet:test-dup-g-geonet"
+      ],
+      "magnitudes": [
+        4.2
+      ],
+      "versiones": 3,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-g-emsc",
+          "principal": "geonet:test-dup-g-geonet",
+          "source": "emsc",
+          "distancia_km": 8.5,
+          "diferencia_s": 2.0
+        },
+        {
+          "event_id": "isc:test-dup-g-isc",
+          "principal": "geonet:test-dup-g-geonet",
+          "source": "isc",
+          "distancia_km": 17.0,
+          "diferencia_s": 4.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "texto_reenvio_no_duplica",
+      "evento_actual": [
+        "geonet:test-dup-h-geonet"
+      ],
+      "magnitudes": [
+        4.2
+      ],
+      "versiones": 1,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "texto_contenido_nuevo_es_revision",
+      "evento_actual": [
+        "geonet:test-dup-h-geonet"
+      ],
+      "magnitudes": [
+        4.6
+      ],
+      "versiones": 2,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "texto_revision_vieja_no_pisa",
+      "evento_actual": [
+        "geonet:test-dup-h-geonet"
+      ],
+      "magnitudes": [
+        4.6
+      ],
+      "versiones": 2,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "replica_cercana_no_se_absorbe",
+      "estados": [
+        {
+          "evento_actual": [
+            "test-dup-i1-usgs"
+          ],
+          "magnitudes": [
+            4.5
+          ],
+          "versiones": 2,
+          "duplicados": [
+            {
+              "event_id": "emsc:test-dup-i1-emsc",
+              "principal": "test-dup-i1-usgs",
+              "source": "emsc",
+              "distancia_km": 4.4,
+              "diferencia_s": 1.0
+            }
+          ]
+        },
+        {
+          "evento_actual": [
+            "emsc:test-dup-i2-emsc"
+          ],
+          "magnitudes": [
+            4.3
+          ],
+          "versiones": 1,
+          "duplicados": []
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "isc_repetido_por_dos_agencias_se_unifica",
+      "estados": [
+        {
+          "evento_actual": [
+            "isc:test-dup-j1-isc"
+          ],
+          "magnitudes": [
+            4.2
+          ],
+          "versiones": 1,
+          "duplicados": []
+        },
+        {
+          "evento_actual": [],
+          "magnitudes": [],
+          "versiones": 1,
+          "duplicados": [
+            {
+              "event_id": "isc:test-dup-j2-isc",
+              "principal": "isc:test-dup-j1-isc",
+              "source": "isc",
+              "distancia_km": 11.1,
+              "diferencia_s": 1.0
+            }
+          ]
+        }
+      ],
       "ok": true
     }
   ],

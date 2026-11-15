@@ -5,14 +5,16 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from common.db import connect
-from common.message import EMSC, USGS
+from common.sources import SECONDARY_IDS, SOURCES, USGS
 
 app = FastAPI(title="Observatorio sísmico API")
 
 MAX_FEATURES = int(os.environ.get("API_MAX_FEATURES", "5000"))
-# El histórico de 2025 se cargó de USGS con esta magnitud mínima
+# Los históricos de 2025 se cargaron con esta magnitud mínima
 HISTORY_MIN_MAG = float(os.environ.get("HISTORY_MIN_MAG", "4"))
-SOURCE_PATTERN = f"^({USGS}|{EMSC})$"
+ALL_SOURCES = "todas"
+SOURCE_PATTERN = f"^({'|'.join([*SOURCES, ALL_SOURCES])})$"
+MODE_PATTERN = "^(live|replay)$"
 
 origins = [
     o.strip()
@@ -27,14 +29,45 @@ app.add_middleware(
 )
 
 
+def _ms(value: datetime | None) -> int | None:
+    return int(value.timestamp() * 1000) if value else None
+
+
+def _iso(value: datetime) -> str:
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def _state_key(source_id: str) -> str:
+    return "last_ingestion" if source_id == USGS else f"last_ingestion_{source_id}"
+
+
 def _last_ingestion_ms() -> int | None:
     with connect() as conn:
         row = conn.execute(
             "SELECT valor_ts FROM estado_ingesta WHERE clave = 'last_ingestion'"
         ).fetchone()
-    if not row or row[0] is None:
-        return None
-    return int(row[0].timestamp() * 1000)
+    return _ms(row[0]) if row else None
+
+
+# Fuentes que el productor ha consultado alguna vez, con su última consulta correcta,
+# si tienen histórico de 2025 cargado y si entran en la selección pedida
+def _sources_state(selected: str) -> list[dict]:
+    with connect() as conn:
+        ingested = dict(conn.execute("SELECT clave, valor_ts FROM estado_ingesta").fetchall())
+        history = {row[0] for row in conn.execute("SELECT DISTINCT source FROM consulta_fdsn")}
+    return [
+        {
+            "source": source.id,
+            "nombre": source.name,
+            "cobertura": source.area,
+            "last_ingestion": _ms(ingested.get(_state_key(source.id))),
+            "intervalo_s": source.poll_seconds,
+            "historico": source.id in history,
+            "seleccionada": selected in (ALL_SOURCES, source.id),
+        }
+        for source in SOURCES.values()
+        if source.id == USGS or ingested.get(_state_key(source.id))
+    ]
 
 
 def _parse_window(start: str | None, end: str | None) -> tuple[datetime, datetime]:
@@ -48,25 +81,41 @@ def _parse_window(start: str | None, end: str | None) -> tuple[datetime, datetim
     return start_dt, end_dt
 
 
+# USGS es todo lo que no viene de otra fuente (feed e histórico son dos accesos a USGS).
+# Una fuente adicional incluye los terremotos que comunicó aunque la fila que se muestra
+# sea la de otra fuente con más prioridad
+def _source_clause(source: str, mode: str) -> tuple[str, list]:
+    if source == USGS:
+        return "NOT (e.source = ANY(%s))", [SECONDARY_IDS]
+    if mode == "replay":
+        return "e.source = %s", [source]
+    return (
+        "(e.source = %s OR EXISTS (SELECT 1 FROM evento_duplicado d"
+        " WHERE d.evento_principal_id = e.event_id AND d.source = %s))",
+        [source, source],
+    )
+
+
 def _event_filters(
     start_dt: datetime,
     end_dt: datetime,
     min_mag: float | None,
     country_id: str | None,
-    source: str | None = None,
+    source: str,
+    mode: str,
 ) -> tuple[str, list]:
-    clauses = ["event_time >= %s", "event_time < %s"]
+    clauses = ["e.event_time >= %s", "e.event_time < %s"]
     params: list = [start_dt, end_dt]
     if min_mag is not None:
-        clauses.append("mag >= %s")
+        clauses.append("e.mag >= %s")
         params.append(min_mag)
     if country_id:
-        clauses.append("country_id = %s")
+        clauses.append("e.country_id = %s")
         params.append(country_id)
-    if source:
-        # El feed y el histórico son dos accesos a USGS: todo lo que no es EMSC cuenta como USGS
-        clauses.append("(source = %s) = %s")
-        params += [EMSC, source == EMSC]
+    if source != ALL_SOURCES:
+        clause, clause_params = _source_clause(source, mode)
+        clauses.append(clause)
+        params += clause_params
     return " AND ".join(clauses), params
 
 
@@ -78,7 +127,8 @@ def salud():
         return {
             "status": "ok",
             "last_ingestion": _last_ingestion_ms(),
-            "generated": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "fuentes": _sources_state(ALL_SOURCES),
+            "generated": _ms(datetime.now(timezone.utc)),
         }
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"base de datos no disponible: {exc}") from exc
@@ -94,24 +144,32 @@ def eventos(
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
-    source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
-    mode: str = Query(default="live", pattern="^(live|replay)$"),
+    source: str = Query(default=USGS, pattern=SOURCE_PATTERN),
+    mode: str = Query(default="live", pattern=MODE_PATTERN),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
-        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source)
-        table = _actual_table(mode)
+        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source, mode)
+        # Otras fuentes que comunicaron el mismo terremoto; el replay no mira datos en vivo
+        others = (
+            "NULL"
+            if mode == "replay"
+            else "(SELECT array_agg(DISTINCT d.source) FROM evento_duplicado d"
+            " WHERE d.evento_principal_id = e.event_id)"
+        )
         sql = f"""
             SELECT e.event_id, e.mag, e.mag_type, e.place, e.depth_km,
                    e.longitude, e.latitude, e.event_time, e.updated,
-                   e.country_id, p.name_es, e.source
-            FROM {table} e
+                   e.country_id, p.name_es, e.source, {others}
+            FROM {_actual_table(mode)} e
             LEFT JOIN pais p ON p.country_id = e.country_id
             WHERE {where}
             ORDER BY e.event_time DESC
         """
         with connect() as conn:
             rows = conn.execute(sql, params).fetchall()
+        fuentes = _sources_state(source)
+        last_ingestion = _last_ingestion_ms()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"error al consultar: {exc}") from exc
 
@@ -134,6 +192,7 @@ def eventos(
             country,
             country_name,
             event_source,
+            other_sources,
         ) = row
         features.append(
             {
@@ -147,11 +206,12 @@ def eventos(
                     "mag": mag,
                     "magType": mag_type,
                     "place": place,
-                    "time": int(event_time.timestamp() * 1000),
-                    "updated": int(updated.timestamp() * 1000),
+                    "time": _ms(event_time),
+                    "updated": _ms(updated),
                     "country_id": country,
                     "country_name": country_name,
                     "source": event_source,
+                    "otras_fuentes": other_sources or [],
                 },
             }
         )
@@ -159,9 +219,11 @@ def eventos(
     return {
         "type": "FeatureCollection",
         "metadata": {
-            "generated": int(datetime.now(timezone.utc).timestamp() * 1000),
-            "last_ingestion": _last_ingestion_ms(),
+            "generated": _ms(datetime.now(timezone.utc)),
+            "last_ingestion": last_ingestion,
             "mode": mode,
+            "source": source,
+            "fuentes": fuentes,
             "count": len(features),
             "total": total,
             "truncated": truncated,
@@ -177,12 +239,12 @@ def estadisticas(
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
-    source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
-    mode: str = Query(default="live", pattern="^(live|replay)$"),
+    source: str = Query(default=USGS, pattern=SOURCE_PATTERN),
+    mode: str = Query(default="live", pattern=MODE_PATTERN),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
-        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source)
+        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source, mode)
         table = _actual_table(mode)
 
         with connect() as conn:
@@ -190,28 +252,30 @@ def estadisticas(
                 f"SELECT COUNT(*) FROM {table} e WHERE {where}", params
             ).fetchone()[0]
             sin_mag = conn.execute(
-                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND mag IS NULL",
+                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND e.mag IS NULL",
                 params,
             ).fetchone()[0]
             sin_pais = conn.execute(
-                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND country_id IS NULL",
+                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND e.country_id IS NULL",
                 params,
             ).fetchone()[0]
 
+            # Cada terremoto cuenta en la fuente de la fila que se muestra
             por_fuente = conn.execute(
                 f"""
-                SELECT CASE WHEN source = %s THEN %s ELSE %s END AS fuente, COUNT(*) AS n
+                SELECT CASE WHEN e.source = ANY(%s) THEN e.source ELSE %s END AS fuente,
+                       COUNT(*) AS n
                 FROM {table} e
                 WHERE {where}
                 GROUP BY 1
                 ORDER BY n DESC
                 """,
-                [EMSC, EMSC, USGS] + params,
+                [SECONDARY_IDS, USGS] + params,
             ).fetchall()
 
             por_hora = conn.execute(
                 f"""
-                SELECT date_trunc('hour', event_time AT TIME ZONE 'UTC') AS hora,
+                SELECT date_trunc('hour', e.event_time AT TIME ZONE 'UTC') AS hora,
                        COUNT(*) AS n
                 FROM {table} e
                 WHERE {where}
@@ -239,19 +303,19 @@ def estadisticas(
                 f"""
                 SELECT
                   CASE
-                    WHEN mag IS NULL THEN 'ND'
-                    WHEN mag < 2 THEN '<2'
-                    WHEN mag < 3 THEN '2-3'
-                    WHEN mag < 4 THEN '3-4'
-                    WHEN mag < 5 THEN '4-5'
-                    WHEN mag < 6 THEN '5-6'
+                    WHEN e.mag IS NULL THEN 'ND'
+                    WHEN e.mag < 2 THEN '<2'
+                    WHEN e.mag < 3 THEN '2-3'
+                    WHEN e.mag < 4 THEN '3-4'
+                    WHEN e.mag < 5 THEN '4-5'
+                    WHEN e.mag < 6 THEN '5-6'
                     ELSE '>=6'
                   END AS banda,
                   COUNT(*) AS n
                 FROM {table} e
                 WHERE {where}
                 GROUP BY 1
-                ORDER BY MIN(COALESCE(mag, -1))
+                ORDER BY MIN(COALESCE(e.mag, -1))
                 """,
                 params,
             ).fetchall()
@@ -260,16 +324,16 @@ def estadisticas(
                 f"""
                 SELECT
                   CASE
-                    WHEN depth_km IS NULL THEN 'ND'
-                    WHEN depth_km < 70 THEN '0-70'
-                    WHEN depth_km < 300 THEN '70-300'
+                    WHEN e.depth_km IS NULL THEN 'ND'
+                    WHEN e.depth_km < 70 THEN '0-70'
+                    WHEN e.depth_km < 300 THEN '70-300'
                     ELSE '>=300'
                   END AS banda,
                   COUNT(*) AS n
                 FROM {table} e
                 WHERE {where}
                 GROUP BY 1
-                ORDER BY MIN(COALESCE(depth_km, -1))
+                ORDER BY MIN(COALESCE(e.depth_km, -1))
                 """,
                 params,
             ).fetchall()
@@ -278,7 +342,7 @@ def estadisticas(
             prev_end = start_dt
             prev_start = start_dt - ventana
             prev_where, prev_params = _event_filters(
-                prev_start, prev_end, min_mag, country_id, source
+                prev_start, prev_end, min_mag, country_id, source, mode
             )
             prev_total = conn.execute(
                 f"SELECT COUNT(*) FROM {table} e WHERE {prev_where}",
@@ -288,14 +352,14 @@ def estadisticas(
             last_1h = conn.execute(
                 f"""
                 SELECT COUNT(*) FROM {table} e
-                WHERE {where} AND event_time >= %s
+                WHERE {where} AND e.event_time >= %s
                 """,
                 params + [end_dt - timedelta(hours=1)],
             ).fetchone()[0]
 
             por_dia_raw = conn.execute(
                 f"""
-                SELECT date_trunc('day', event_time AT TIME ZONE 'UTC')::date AS dia,
+                SELECT date_trunc('day', e.event_time AT TIME ZONE 'UTC')::date AS dia,
                        COUNT(*) AS n
                 FROM {table} e
                 WHERE {where}
@@ -309,12 +373,14 @@ def estadisticas(
             ref_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
             ref_end = datetime(2026, 1, 1, tzinfo=timezone.utc)
             ref_where, ref_params = _event_filters(
-                ref_start, ref_end, min_mag, country_id, source
+                ref_start, ref_end, min_mag, country_id, source, mode
             )
             ref_total = conn.execute(
                 f"SELECT COUNT(*) FROM {table} e WHERE {ref_where}",
                 ref_params,
             ).fetchone()[0]
+        fuentes = _sources_state(source)
+        last_ingestion = _last_ingestion_ms()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"error al consultar: {exc}") from exc
 
@@ -330,12 +396,16 @@ def estadisticas(
 
     dias_con_eventos = sum(1 for d in por_dia if d["count"] > 0)
     dias_cero = sum(1 for d in por_dia if d["count"] == 0)
-    denominador_dias = len(por_dia) if por_dia else 1
-    media_por_dia = total / denominador_dias
+    # La media reparte el recuento entre la duración real: 24 horas cuentan como un día
+    # aunque toquen dos fechas UTC
+    duracion_dias = ventana.total_seconds() / 86400
+    media_por_dia = total / duracion_dias if duracion_dias > 0 else 0
 
-    # La referencia es USGS con M >= HISTORY_MIN_MAG: solo es equivalente un periodo con esa misma muestra
-    hay_emsc = any(fuente == EMSC for fuente, _ in por_fuente)
-    comparable = min_mag is not None and min_mag >= HISTORY_MIN_MAG and not hay_emsc
+    # La referencia de 2025 solo es equivalente si existe histórico de cada fuente
+    # elegida y el periodo usa la misma magnitud mínima con la que se cargó
+    seleccionadas = [f for f in fuentes if f["seleccionada"]]
+    sin_historico = [f["nombre"] for f in seleccionadas if not f["historico"]]
+    magnitud_equivalente = min_mag is not None and min_mag >= HISTORY_MIN_MAG
 
     now = datetime.now(timezone.utc)
     # Periodo reciente incompleto si el fin cae en el día UTC actual o futuro
@@ -349,19 +419,27 @@ def estadisticas(
         avisos.append(
             f"Hay {dias_cero} día(s) sin eventos; el denominador de la media incluye esos ceros."
         )
-
-    if not comparable:
+    if sin_historico:
         avisos.append(
-            f"La media de 2025 solo incluye terremotos de USGS con magnitud {HISTORY_MIN_MAG:g} o mayor: "
-            "para comparar muestras equivalentes, filtra por fuente USGS y esa magnitud mínima."
+            f"No hay histórico de 2025 de {', '.join(sin_historico)}: "
+            "no se puede calcular la media de referencia para esta selección."
         )
+    elif not magnitud_equivalente:
+        avisos.append(
+            f"La media de 2025 solo incluye terremotos de magnitud {HISTORY_MIN_MAG:g} o mayor: "
+            "para comparar muestras equivalentes, filtra por esa magnitud mínima."
+        )
+    avisos += [
+        SOURCES[f["source"]].notice for f in seleccionadas if SOURCES[f["source"]].notice
+    ]
 
     return {
         "periodo": {
-            "start": start_dt.isoformat().replace("+00:00", "Z"),
-            "end": end_dt.isoformat().replace("+00:00", "Z"),
+            "start": _iso(start_dt),
+            "end": _iso(end_dt),
             "unidad": "UTC",
-            "dias": denominador_dias,
+            "dias": len(por_dia),
+            "duracion_dias": round(duracion_dias, 4),
             "incompleto": periodo_incompleto,
         },
         "filtros": {
@@ -369,6 +447,7 @@ def estadisticas(
             "country_id": country_id,
             "source": source,
         },
+        "fuentes": fuentes,
         "resumen": {
             "total": total,
             "ultima_hora": last_1h,
@@ -379,10 +458,7 @@ def estadisticas(
             "dias_cero": dias_cero,
         },
         "por_hora": [
-            {
-                "hora": row[0].replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
-                "count": row[1],
-            }
+            {"hora": _iso(row[0].replace(tzinfo=timezone.utc)), "count": row[1]}
             for row in por_hora
         ],
         "por_dia": por_dia,
@@ -401,8 +477,8 @@ def estadisticas(
         },
         "comparacion_historica": {
             "ventana_anterior": {
-                "start": prev_start.isoformat().replace("+00:00", "Z"),
-                "end": prev_end.isoformat().replace("+00:00", "Z"),
+                "start": _iso(prev_start),
+                "end": _iso(prev_end),
                 "total": prev_total,
             },
             "delta": total - prev_total,
@@ -411,8 +487,8 @@ def estadisticas(
                 "end": "2026-01-01T00:00:00Z",
                 "total": ref_total,
                 "dias_denominador": 365,
-                "media_diaria": round(ref_total / 365, 4),
-                "filtros_equivalentes": comparable,
+                "media_diaria": None if sin_historico else round(ref_total / 365, 4),
+                "filtros_equivalentes": magnitud_equivalente and not sin_historico,
             },
             "nota": "Ventana anterior de igual duración + media diaria 2025 con mismos min_mag/country_id/source (días cero en denominador).",
         },
@@ -422,6 +498,6 @@ def estadisticas(
             "pais": sin_pais,
         },
         "mode": mode,
-        "generated": int(datetime.now(timezone.utc).timestamp() * 1000),
-        "last_ingestion": _last_ingestion_ms(),
+        "generated": _ms(now),
+        "last_ingestion": last_ingestion,
     }

@@ -24,6 +24,7 @@ import {
   type PerspectiveCamera,
   type ShaderMaterial,
 } from 'three';
+import { DropdownComponent, type DropdownOption } from './dropdown.component';
 
 type Properties = {
   mag: number | null;
@@ -33,11 +34,21 @@ type Properties = {
   country_name?: string | null;
   country_id?: string | null;
   source?: string;
+  otras_fuentes?: string[];
+};
+type SourceInfo = {
+  source: string;
+  nombre: string;
+  cobertura: string;
+  last_ingestion: number | null;
+  intervalo_s: number;
+  seleccionada: boolean;
 };
 type Events = FeatureCollection<Point, Properties> & {
   metadata?: {
     generated?: number;
     last_ingestion?: number | null;
+    fuentes?: SourceInfo[];
     mode?: string;
     truncated?: boolean;
     count?: number;
@@ -45,13 +56,14 @@ type Events = FeatureCollection<Point, Properties> & {
   };
 };
 type StatsResponse = {
-  periodo?: { start?: string; end?: string; dias?: number };
+  periodo?: { start?: string; end?: string; duracion_dias?: number };
+  filtros?: { source?: string };
   resumen?: { total?: number; ultima_hora?: number; media_por_dia?: number };
   por_pais?: CountryRow[];
   por_fuente?: { source: string; count: number }[];
   distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
   comparacion_historica?: {
-    referencia_2025?: { media_diaria?: number; filtros_equivalentes?: boolean };
+    referencia_2025?: { media_diaria?: number | null; filtros_equivalentes?: boolean };
   };
   avisos?: string[];
 };
@@ -72,6 +84,7 @@ type StatsView = {
   lastHour: string;
   dailyAvg: string;
   ref2025: string;
+  refLabel: string;
   totalTip: string;
   dailyTip: string;
   refTip: string;
@@ -91,6 +104,7 @@ type EventRow = {
   time: string;
   country: string;
   source: string;
+  others: string;
 };
 type QuakeNode = { core: Mesh; wave: Mesh<CircleGeometry, MeshBasicMaterial> };
 type GlobePoint = {
@@ -127,8 +141,27 @@ const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 5500;
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
-// El feed de USGS y su histórico cuentan como la misma fuente
-const SOURCE_LABELS: Record<string, string> = { usgs: 'USGS', 'usgs-fdsn': 'USGS', emsc: 'EMSC' };
+const USGS = 'usgs';
+const ALL_SOURCES = 'todas';
+const USGS_SOURCE: SourceInfo = {
+  source: USGS,
+  nombre: 'USGS',
+  cobertura: 'Mundial desde magnitud 4; todas las magnitudes en EE. UU.',
+  last_ingestion: null,
+  intervalo_s: 60,
+  seleccionada: true,
+};
+const ALL_SOURCES_OPTION: DropdownOption = {
+  value: ALL_SOURCES,
+  label: 'Todas las fuentes',
+  short: 'Todas',
+  hint: 'Cada terremoto una sola vez, aunque lo comuniquen varias',
+};
+const ALL_COUNTRIES_OPTION: DropdownOption = { value: '', label: 'Todos los países', short: 'Todos' };
+const STALE_NOTE = 'Si se retrasa, lo que ves puede estar desactualizado.';
+const USGS_INGESTION_TIP = `Última vez que el sistema descargó terremotos de USGS, el servicio geológico de EE. UU. y fuente principal de los datos. ${STALE_NOTE}`;
+const LIST = new Intl.ListFormat('es', { type: 'conjunction' });
+const DECIMAL = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 });
 const DEPTH_COLORS = { shallow: '#38bdf8', mid: '#6366f1', deep: '#c084fc', unknown: '#94a3b8' };
 const MAG_BANDS: Band[] = [
   { band: '<2', label: '< 2', about: 'Magnitud menor que 2' },
@@ -168,13 +201,16 @@ const DEPTH_BANDS: Band[] = [
 const REF_TIP =
   'Media de terremotos por día en 2025 con los mismos filtros. Sirve de referencia para saber si el periodo es más o menos activo de lo habitual.';
 const REF_LIMITED =
-  'Media diaria de 2025, calculada solo con terremotos de USGS de magnitud 4 o mayor. No es comparable con este periodo: para comparar muestras equivalentes, filtra por fuente USGS y magnitud mínima 4.';
+  'Media diaria de 2025, calculada solo con terremotos de magnitud 4 o mayor. No es comparable con este periodo: para comparar muestras equivalentes, filtra por magnitud mínima 4.';
+const REF_MISSING =
+  'No hay datos de 2025 de todas las fuentes elegidas, así que no se puede calcular la media de referencia.';
 const TOTAL_TIP = 'Terremotos del periodo consultado que cumplen los filtros';
 const EMPTY_STATS: StatsView = {
   total: '—',
   lastHour: '—',
   dailyAvg: '—',
   ref2025: '—',
+  refLabel: 'Media 2025',
   totalTip: `${TOTAL_TIP}.`,
   dailyTip: 'Media de terremotos por día en el periodo.',
   refTip: REF_TIP,
@@ -217,7 +253,7 @@ function bandBars(bands: Band[], rows: BandRow[] | undefined, total: number): Ba
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, DropdownComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
@@ -237,7 +273,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly apiFailed = signal(false);
   readonly lastRead = signal('—');
   readonly generated = signal('—');
-  readonly lastIngestion = signal('—');
   readonly period = signal('—');
   readonly refreshSeconds = signal(60);
   readonly tip = signal<Tip | null>(null);
@@ -250,7 +285,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
-  readonly source = signal('');
+  readonly source = signal(USGS);
+  readonly sources = signal<SourceInfo[]>([]);
+  readonly countryOptions = signal<DropdownOption[]>([ALL_COUNTRIES_OPTION]);
   readonly stats = signal<StatsView>(EMPTY_STATS);
   readonly eventRows = signal<EventRow[]>([]);
   readonly collapsed = signal<Record<PanelId, boolean>>({
@@ -264,6 +301,33 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.apiFailed()) return 'error';
     if (this.status() === 'Cargando') return 'idle';
     return this.staleWarning() || this.truncated() ? 'warn' : 'ok';
+  });
+  readonly sourceOptions = computed<DropdownOption[]>(() => {
+    const known = this.sources().length ? this.sources() : [USGS_SOURCE];
+    const [first, ...rest] = known.map((s) => ({ value: s.source, label: s.nombre, hint: s.cobertura }));
+    return rest.length ? [first, ALL_SOURCES_OPTION, ...rest] : [first];
+  });
+  // Fila de estado sobre la ingesta: de la fuente elegida o, con varias, de la más atrasada
+  readonly ingestion = computed(() => {
+    const chosen = this.sources().filter((s) => s.seleccionada);
+    if (chosen.length < 2) {
+      const only = chosen[0] ?? USGS_SOURCE;
+      return {
+        label: `Última ingesta de ${only.nombre}`,
+        value: chosen.length ? this.date(only.last_ingestion) : '—',
+        tip:
+          only.source === USGS
+            ? USGS_INGESTION_TIP
+            : `Última vez que el sistema descargó terremotos de ${only.nombre} (${only.cobertura}). ${STALE_NOTE}`,
+      };
+    }
+    const times = chosen.map((s) => s.last_ingestion ?? NaN);
+    const detail = chosen.map((s) => `${s.nombre}: ${this.date(s.last_ingestion)}`).join('\n');
+    return {
+      label: `Última ingesta (${chosen.length} fuentes)`,
+      value: this.date(Math.min(...times)),
+      tip: `Última descarga correcta de cada fuente; arriba se ve la más antigua. ${STALE_NOTE}\n${detail}`,
+    };
   });
   readonly warnings = computed(() => {
     const list: string[] = [];
@@ -341,12 +405,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const raw = (event.target as HTMLInputElement).value;
     this.minMag.set(raw === '' ? null : Number(raw));
   }
-  onCountry(event: Event): void {
-    this.countryId.set((event.target as HTMLInputElement).value.trim().toUpperCase());
-  }
-  onSource(event: Event): void {
-    this.source.set((event.target as HTMLSelectElement).value);
-  }
 
   applyFilters(): void {
     clearTimeout(this.timer);
@@ -358,7 +416,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.endLocal.set('');
     this.minMag.set(null);
     this.countryId.set('');
-    this.source.set('');
+    this.source.set(USGS);
     this.applyFilters();
   }
 
@@ -635,6 +693,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.globe?.polygonsData(features);
       this.labels = features.flatMap((feature) => this.buildLabel(feature.properties ?? {}));
       this.globe?.htmlElementsData(this.labels);
+      const options = features
+        .map(({ properties }) => ({
+          value: String(properties?.['ADM0_A3'] ?? ''),
+          label: String(properties?.['NAME_ES'] ?? ''),
+        }))
+        .filter((option) => option.value && option.label)
+        .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+      this.countryOptions.set([ALL_COUNTRIES_OPTION, ...options]);
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -663,7 +729,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       params.set('min_mag', String(this.minMag()));
     }
     if (this.countryId()) params.set('country_id', this.countryId());
-    if (this.source()) params.set('source', this.source());
+    params.set('source', this.source());
     if (this.config?.dataMode === 'replay') params.set('mode', 'replay');
     const qs = params.toString();
     return qs ? `?${qs}` : '';
@@ -679,18 +745,23 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return response.json() as Promise<T>;
   }
 
-  private updateStale(lastIngestionMs: number | null | undefined): void {
-    if (typeof lastIngestionMs !== 'number' || !Number.isFinite(lastIngestionMs)) {
-      this.staleWarning.set('No consta ninguna ingesta de USGS.');
-      return;
-    }
-    const ageMs = Date.now() - lastIngestionMs;
-    const threshold = Math.max(180000, this.refreshSeconds() * 3000);
-    this.staleWarning.set(
-      ageMs > threshold
-        ? `Datos desactualizados: la última ingesta fue hace ${Math.round(ageMs / 60000)} min.`
-        : ''
+  private sourceName(id: string | undefined): string {
+    return this.sources().find((s) => s.source === id)?.nombre ?? USGS_SOURCE.nombre;
+  }
+
+  // Una fuente va con retraso si lleva tres intervalos de consulta sin una descarga correcta
+  private staleText(chosen: SourceInfo[]): string {
+    const names = (list: SourceInfo[]) => LIST.format(list.map((s) => s.nombre));
+    const age = (s: SourceInfo) => Date.now() - (s.last_ingestion ?? 0);
+    const missing = chosen.filter((s) => typeof s.last_ingestion !== 'number');
+    if (missing.length) return `No consta ninguna ingesta de ${names(missing)}.`;
+    const late = chosen.filter(
+      (s) => age(s) > Math.max(180000, this.refreshSeconds() * 3000, s.intervalo_s * 3000)
     );
+    if (!late.length) return '';
+    const minutes = Math.round(Math.max(...late.map(age)) / 60000);
+    const who = chosen.length > 1 ? ` de ${names(late)}` : '';
+    return `Datos desactualizados${who}: la última ingesta fue hace ${minutes} min.`;
   }
 
   private depthColor(depth: number | null): string {
@@ -714,7 +785,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       `<dt>Profundidad</dt><dd class="depth" style="--depth: ${row.color}">${shown(row.depth)}</dd>`,
       `<dt>Fecha</dt><dd class="time">${row.time}</dd>`,
       `<dt>País</dt><dd class="country">${this.escape(row.country)}</dd>`,
-      `<dt>Fuente</dt><dd class="source">${row.source}</dd>`,
+      `<dt>Fuente</dt><dd class="source">${this.escape(row.source)}</dd>`,
+      row.others ? `<dt>También en</dt><dd class="source">${this.escape(row.others)}</dd>` : '',
       '</dl>',
       `<small>ID ${this.escape(row.id)}</small>`,
       '</div>',
@@ -747,6 +819,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         throw new Error('Se esperaba FeatureCollection');
       }
 
+      const sources = data.metadata?.fuentes ?? [
+        { ...USGS_SOURCE, last_ingestion: data.metadata?.last_ingestion ?? null },
+      ];
+      this.sources.set(sources);
       const points: GlobePoint[] = [];
       const rows: EventRow[] = [];
       let omitted = 0;
@@ -775,7 +851,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           color: this.depthColor(depth),
           time: this.date(p.time),
           country: p.country_name ?? 'Sin país asignado',
-          source: SOURCE_LABELS[p.source ?? ''] ?? 'Sin dato',
+          source: this.sourceName(p.source),
+          others: (p.otras_fuentes ?? []).map((id) => this.sourceName(id)).join(', '),
         };
         rows.push(row);
         points.push({
@@ -798,8 +875,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.truncated.set(Boolean(data.metadata?.truncated));
       this.lastRead.set(this.date(Date.now()));
       this.generated.set(this.date(data.metadata?.generated));
-      this.lastIngestion.set(this.date(data.metadata?.last_ingestion));
-      this.updateStale(data.metadata?.last_ingestion ?? null);
+      this.staleWarning.set(this.staleText(sources.filter((s) => s.seleccionada)));
       this.apiFailed.set(false);
       this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
       if (config.mode === 'api') await this.loadStats(config, headers, qs);
@@ -836,9 +912,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       const total = summary.total ?? 0;
       const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
       const comparable = data.comparacion_historica?.referencia_2025?.filtros_equivalentes ?? true;
-      const sources = (data.por_fuente ?? [])
-        .map((row) => `${row.count} de ${SOURCE_LABELS[row.source] ?? row.source}`)
-        .join(' y ');
+      const hasRef = typeof ref === 'number';
+      // Con varias fuentes cada terremoto muestra los datos de una sola: se dice de cuál
+      const shown = LIST.format(
+        (data.por_fuente ?? []).map((row) => `${this.sourceName(row.source)} (${row.count})`)
+      );
+      const mixed = (data.filtros?.source ?? USGS) !== USGS && shown;
       const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
         label: row.country_name,
         about:
@@ -852,10 +931,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         lastHour: String(summary.ultima_hora ?? 0),
         dailyAvg:
           typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
-        ref2025: typeof ref === 'number' ? ref.toFixed(1) : '—',
-        totalTip: sources ? `${TOTAL_TIP}: ${sources}.` : `${TOTAL_TIP}.`,
-        dailyTip: `Terremotos del periodo divididos entre los días naturales (UTC) que abarca: ${data.periodo?.dias ?? 1}.`,
-        refTip: comparable ? REF_TIP : REF_LIMITED,
+        ref2025: hasRef ? ref.toFixed(1) : '—',
+        refLabel: comparable || !hasRef ? 'Media 2025' : '2025 · M≥4',
+        totalTip: mixed ? `${TOTAL_TIP}. Los datos mostrados son de ${shown}.` : `${TOTAL_TIP}.`,
+        dailyTip: `Terremotos del periodo divididos entre lo que dura en días: ${DECIMAL.format(data.periodo?.duracion_dias ?? 1)}.`,
+        refTip: comparable ? REF_TIP : hasRef ? REF_LIMITED : REF_MISSING,
         comparable,
         avisos: data.avisos ?? [],
         countries: toBars(countries, total),

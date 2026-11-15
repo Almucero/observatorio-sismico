@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -11,12 +12,14 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import TopicAlreadyExistsError
 
 from common.db import connect
-from common.message import build_message, event_id_of, updated_of
-from producer.feeds import Feed, enabled_feeds
+from common.message import build_message
+from common.sources import read_event, source_of, to_datetime
+from producer.feeds import Feed, enabled_feeds, parse_events
 
 BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP", "kafka:19092")
 TOPIC = os.environ.get("KAFKA_TOPIC_LIVE", "terremotos.live")
 HEALTH_PORT = int(os.environ.get("HEALTH_PORT", "8082"))
+HEADERS = {"User-Agent": "observatorio-sismico (proyecto docente)"}
 
 log = logging.getLogger("producer")
 
@@ -31,29 +34,43 @@ async def _health(reader, writer):
         await writer.wait_closed()
 
 
-def _should_publish(event_id: str, updated: datetime) -> bool:
-    with connect() as conn:
-        row = conn.execute(
-            "SELECT updated FROM publicado WHERE event_id = %s",
-            (event_id,),
-        ).fetchone()
-        return row is None or updated > row[0]
+# Huella del contenido, para las fuentes que no publican fecha de revisión
+def _fingerprint(event: dict) -> str:
+    return hashlib.md5(json.dumps(event, sort_keys=True).encode()).hexdigest()
 
 
-def _mark_published(event_id: str, updated: datetime) -> None:
-    with connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO publicado (event_id, updated, published_at)
-            VALUES (%s, %s, NOW())
-            ON CONFLICT (event_id) DO UPDATE
-              SET updated = EXCLUDED.updated,
-                  published_at = NOW()
-            WHERE publicado.updated < EXCLUDED.updated
-            """,
-            (event_id, updated),
-        )
-        conn.commit()
+def _known_versions(conn, event_ids: list[str]) -> dict[str, tuple[datetime, str | None]]:
+    rows = conn.execute(
+        "SELECT event_id, updated, huella FROM publicado WHERE event_id = ANY(%s)",
+        (event_ids,),
+    ).fetchall()
+    return {event_id: (updated, huella) for event_id, updated, huella in rows}
+
+
+def _is_new(
+    known: tuple[datetime, str | None] | None, updated: datetime, huella: str | None
+) -> bool:
+    if known is None:
+        return True
+    if huella is not None:
+        return huella != known[1]
+    return updated > known[0]
+
+
+def _mark_published(conn, event_id: str, updated: datetime, huella: str | None) -> None:
+    conn.execute(
+        """
+        INSERT INTO publicado (event_id, updated, huella, published_at)
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (event_id) DO UPDATE
+          SET updated = EXCLUDED.updated,
+              huella = EXCLUDED.huella,
+              published_at = NOW()
+        WHERE publicado.updated < EXCLUDED.updated
+        """,
+        (event_id, updated, huella),
+    )
+    conn.commit()
 
 
 def _set_last_ingestion(state_key: str) -> None:
@@ -68,6 +85,35 @@ def _set_last_ingestion(state_key: str) -> None:
             (state_key,),
         )
         conn.commit()
+
+
+# Publica solo los eventos nuevos o revisados y los marca tras la confirmación de Kafka.
+# Devuelve (publicados, omitidos)
+async def publish_events(
+    producer: AIOKafkaProducer, events: list[dict], source: str
+) -> tuple[int, int]:
+    revised = source_of(source).revised
+    pending = [(read_event(event, source), event) for event in events]
+    published = 0
+    with connect() as conn:
+        known = _known_versions(conn, [raw["id"] for raw, _ in pending if raw["id"]])
+        for raw, event in pending:
+            message = build_message(event, mode="live", source=source)
+            updated = raw["updated"] if revised else to_datetime(message["ingested_at"])
+            huella = None if revised else _fingerprint(event)
+            if not raw["id"] or updated is None:
+                continue
+            if not _is_new(known.get(raw["id"]), updated, huella):
+                continue
+            await producer.send_and_wait(
+                TOPIC,
+                json.dumps(message, separators=(",", ":")).encode(),
+                key=raw["id"].encode(),
+            )
+            _mark_published(conn, raw["id"], updated, huella)
+            known[raw["id"]] = (updated, huella)
+            published += 1
+    return published, len(events) - published
 
 
 async def ensure_topic() -> None:
@@ -97,11 +143,14 @@ async def ensure_topic() -> None:
     raise RuntimeError(f"No se pudo crear el topic {TOPIC}") from last_error
 
 
-async def fetch_feed(client: httpx.AsyncClient, feed: Feed) -> dict:
+# Reintenta con espera creciente ante límites de peticiones o errores del servidor
+async def fetch_events(
+    client: httpx.AsyncClient, url: str, params: dict, timeout: float
+) -> list[dict]:
     delay = 1
     for attempt in range(6):
         try:
-            response = await client.get(feed.url, params=feed.params(), timeout=30.0)
+            response = await client.get(url, params=params or None, timeout=timeout)
             if response.status_code in (429, 500, 502, 503, 504):
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}",
@@ -109,51 +158,32 @@ async def fetch_feed(client: httpx.AsyncClient, feed: Feed) -> dict:
                     response=response,
                 )
             response.raise_for_status()
-            return response.json()
+            return parse_events(response)
         except Exception as exc:
-            log.warning("feed-retry source=%s attempt=%s error=%s", feed.source, attempt + 1, exc)
+            log.warning("feed-retry url=%s attempt=%s error=%s", url, attempt + 1, exc)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)
-    raise RuntimeError(f"No se pudo obtener el feed de {feed.source}")
+    raise RuntimeError(f"No se pudo consultar {url}")
 
 
 async def publish_cycle(
     producer: AIOKafkaProducer, client: httpx.AsyncClient, feed: Feed
 ) -> None:
-    data = await fetch_feed(client, feed)
-    features = data.get("features") or []
-    published = 0
-    skipped = 0
-    for event in features:
-        event_id = event_id_of(event, feed.source)
-        updated = updated_of(event, feed.source)
-        if not event_id or updated is None:
-            skipped += 1
-            continue
-        if not _should_publish(event_id, updated):
-            skipped += 1
-            continue
-        message = build_message(event, mode="live", source=feed.source)
-        await producer.send_and_wait(
-            TOPIC,
-            json.dumps(message, separators=(",", ":")).encode(),
-            key=event_id.encode(),
-        )
-        _mark_published(event_id, updated)
-        published += 1
+    events = await fetch_events(client, feed.url, feed.live_params(), timeout=60.0)
+    published, skipped = await publish_events(producer, events, feed.source)
     _set_last_ingestion(feed.state_key)
     log.info(
         "cycle source=%s published=%s skipped=%s total=%s",
         feed.source,
         published,
         skipped,
-        len(features),
+        len(events),
     )
 
 
-# Cada fuente tiene su propio ciclo: si una falla, la otra sigue publicando
+# Cada fuente tiene su propio ciclo: si una falla, las demás siguen publicando
 async def loop(producer: AIOKafkaProducer, feed: Feed) -> None:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         while True:
             try:
                 await publish_cycle(producer, client, feed)

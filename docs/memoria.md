@@ -6,16 +6,16 @@ El observatorio responde: **¿qué sismicidad (live e histórica) hay, dónde y 
 
 Flujo: productor USGS → Kafka → consumidor (valida, PIP país, idempotencia) → PostgreSQL → API FastAPI → panel Angular. Alcance histórico: **2025, mundial, M≥4, `eventtype=earthquake`**.
 
-Ampliación opcional (§10): el mismo productor consulta además el catálogo de EMSC para corregir el sesgo de cobertura del feed de USGS. Se desactiva con `EMSC_ENABLED=false` y el sistema queda en el mínimo del enunciado.
+Ampliación opcional (§10): el mismo productor consulta además otras fuentes regionales y mundiales para corregir el sesgo de cobertura del feed de USGS. Con `EXTRA_SOURCES=` vacío el sistema queda en el mínimo del enunciado; el panel y la API usan USGS por defecto.
 
 ## 1. Extracción y procedencia
 
 | Conjunto | Fuente | Periodo / filtros | Extracción |
 |----------|--------|-------------------|------------|
 | Live | USGS `all_day.geojson` | ~24 h, todos los tipos en feed; no-earthquake a cuarentena | Poll ~60 s |
-| Histórico | USGS FDSN Event | 2025, M≥4, earthquake, por meses | `producer.history`; log en `consulta_fdsn` |
+| Histórico | USGS FDSN Event | 2025, M≥4, earthquake, por meses | `producer.history --source usgs`; log en `consulta_fdsn` |
 | Geografía | Natural Earth (copia en `frontend/public/datos/paises.geojson`) | ADM0 | Mismo archivo en mapa y consumidor |
-| Live, ampliación | EMSC, servicio FDSN Event de seismicportal.eu | Últimas 24 h, todos los tipos; solo `ke`/`fe`/`de` (terremoto) pasan, el resto a cuarentena | Poll ~120 s en el mismo productor |
+| Live + histórico, ampliación | GeoNet, NRCan, USP, KAGSR, EMSC, ISC | Ventana por fuente; solo tipos terremoto; histórico 2025 M≥4 | Mismo productor; `EXTRA_SOURCES`; `producer.history --source …` |
 
 Tipos/unidades: tiempos USGS en **ms Unix** → `TIMESTAMPTZ` UTC; coordenadas **lon, lat, depth_km**; magnitud decimal + `magType`; `null` nunca NaN.
 
@@ -25,8 +25,8 @@ Automatización: Compose healthchecks; productor con backoff 429/5xx; histórico
 
 | Campo | Significado | Tipo / unidad | Ausencias |
 |-------|-------------|---------------|-----------|
-| `event_id` | Id USGS; los de EMSC llevan prefijo `emsc:` | texto | obligatorio |
-| `source` | Fuente del evento: `usgs` (feed), `usgs-fdsn` (histórico), `emsc` | texto | obligatorio |
+| `event_id` | Id USGS; otras fuentes llevan prefijo `<fuente>:` | texto | obligatorio |
+| `source` | Fuente: `usgs` / `usgs-fdsn` / `geonet` / `nrcan` / `usp` / `kagsr` / `emsc` / `isc` | texto | obligatorio |
 | `mag` | Magnitud | decimal | null permitido (ND) |
 | `mag_type` | Escala (ml, mb…) | texto | null |
 | `depth_km` | Profundidad | km | null; negativas no se rechazan a ciegas |
@@ -44,7 +44,7 @@ Conjunto de referencia: `evento_actual` (~18 492 filas tras live + histórico 
 |-----------|----------|--------|------------------|
 | Completitud | 1 mag null; 0 place vacío; ~14 380 sin país; 0 depth null en actual | Conservar null; no rellenar con 0; país null como categoría | Mag ND en UI; «Sin país» en stats |
 | Unicidad | 0 duplicados `(event_id, updated)`; actual 1 fila/id | UNIQUE + upsert `DO NOTHING` / `WHERE updated <` | Evidencia `idempotencia.json` |
-| Unicidad entre fuentes | 52 de 282 eventos de EMSC eran terremotos ya recibidos de USGS con otro id | Emparejar por hora (±16 s) y lugar (≤100 km); queda la fila de USGS y el enlace en `evento_duplicado` | 0 pares sin detectar; `fuente-emsc.md` |
+| Unicidad entre fuentes | ~38 k avisos de otras fuentes describen un terremoto ya mostrado | Emparejar por hora (±16 s) y lugar (≤200 km); prioridad USGS → regional → agregadores; enlace en `evento_duplicado` | 0 residuales 2025; `fuentes-adicionales.md` |
 | Validez | Coords fuera de rango → cuarentena | Rechazo con motivo | 1 caso sintético `coordenadas_fuera_de_rango` |
 | Consistencia | Revisón vieja no pisa; unidades UTC/km | Comparar `updated` | `idempotencia.json` |
 | Actualidad | `last_ingestion` + aviso stale en panel | Productor actualiza estado; UI umbral 3× poll | Panel |
@@ -96,7 +96,7 @@ Mejoras: (1) subdividir FDSN si un mes → 20k; (2) cachear polígonos simplific
 | Restart consumidor | Sin duplicar | OK | `restart-consumidor.md` |
 | Replay | Aislado | OK | `replay.md` |
 | Túnel down/up | UI tolera | OK | `tunel-down-up.md` |
-| Duplicado entre fuentes (ampliación) | Una sola fila por terremoto | OK | `fuente-emsc.md`, `duplicados-fuentes.json` |
+| Duplicado entre fuentes (ampliación) | Una sola fila por terremoto | OK | `fuentes-adicionales.md`, `duplicados-fuentes.json` |
 
 ## 8. Replay
 
@@ -109,16 +109,16 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 - Durante la defensa: `docker compose up -d` + `ngrok http 127.0.0.1:8000` (si cambia la URL free, actualizar `config.json` y redeploy).  
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`
 
-## 10. Ampliación: segunda fuente (EMSC)
+## 10. Ampliación: más fuentes (opcional)
 
-**Problema.** En las últimas 24 h, el 78 % de los terremotos del feed de USGS (150 de 192) caían en Estados Unidos. No es sismicidad real sino cobertura de detección: USGS publica todo lo que localizan las redes de EE. UU., pero del resto del mundo solo lo de magnitud ≈4 o mayor (fuera de EE. UU. había 20 eventos de M<4 frente a 150 dentro).
+**Problema.** En las últimas 24 h, ~78 % de los terremotos del feed de USGS caían en Estados Unidos. No es sismicidad real sino cobertura de detección: USGS publica todo lo que localizan las redes de EE. UU., pero del resto del mundo solo lo de magnitud ≈4 o mayor.
 
-**Solución.** El productor lanza un segundo ciclo que consulta el catálogo de EMSC (Centro Sismológico Euromediterráneo, `seismicportal.eu`, citado como fuente) y publica en el mismo topic con `source: "emsc"`. Siguen siendo cinco servicios; `last_ingestion` sigue siendo la última consulta correcta a USGS y EMSC tiene su propia clave en `estado_ingesta`. Si EMSC falla, el ciclo de USGS no se ve afectado.
+**Solución.** El mismo productor lanza un ciclo por fuente (GeoNet, NRCan, USP, KAGSR, EMSC, ISC) y publica en el mismo topic con `source` distinto. Siguen siendo cinco servicios Compose. `last_ingestion` del contrato sigue siendo la última consulta correcta a USGS; cada fuente tiene su clave en `estado_ingesta`. Si una falla, las demás siguen. Con `EXTRA_SOURCES=` vacío solo queda USGS. El panel y la API usan `source=usgs` por defecto: la vista habitual es la del mínimo del enunciado.
 
-**Duplicados.** Cada fuente da su propio identificador al mismo terremoto, así que la clave `event_id` no basta. El consumidor considera el mismo terremoto dos avisos de fuentes distintas separados ≤16 s y ≤100 km. USGS es la fuente principal: en `evento_actual` queda su fila y el aviso de EMSC se enlaza en `evento_duplicado` (sus versiones se conservan en `evento_version`). Funciona en cualquier orden de llegada y ante reenvíos, y la comprobación va dentro de la misma transacción que el upsert.
+**Duplicados.** Cada fuente da su propio id, así que `event_id` no basta. Dos avisos de fuentes distintas (o dos boletines ISC) son el mismo terremoto si |Δt| ≤ 16 s y distancia ≤ 200 km. Prioridad: USGS → agencia regional → agregadores. En `evento_actual` queda una fila; el resto se enlaza en `evento_duplicado` (las versiones se conservan). Funciona en cualquier orden y ante reenvíos, dentro de la misma transacción que el upsert.
 
-**Resultado.** 284 eventos de EMSC en el primer ciclo: 2 a cuarentena por tipo, 52 duplicados de USGS (media 3,2 km y 0,4 s) y 230 nuevos. Estados Unidos pasa del 78 % al 35 % y los países con actividad, de 10 a 29. Detalle en `docs/evidencias/fuente-emsc.md`.
+**Resultado.** Histórico 2025 M≥4: 18 302 USGS sin cambios; con todas las fuentes, 27 413 filas únicas. ~38 k enlaces de duplicado; 0 residuales dentro del umbral tras reaplicar el emparejado. En vivo, con «Todas las fuentes», EE. UU. deja de dominar el ranking. Detalle en `docs/evidencias/fuentes-adicionales.md`.
 
-**Muestras equivalentes.** El histórico de 2025 es solo USGS M≥4, así que la API marca `filtros_equivalentes: false` y añade un aviso salvo que el periodo sea USGS con `min_mag ≥ 4`; el panel lo señala y ofrece el filtro `source`. Las conclusiones de §5 no cambian: usan 2025, donde no hay datos de EMSC.
+**Muestras equivalentes.** Cada fuente tiene su histórico 2025 M≥4. La API calcula la media de 2025 con el mismo filtro `source` y marca `filtros_equivalentes` solo si todas las fuentes elegidas tienen histórico y `min_mag ≥ 4`. Las conclusiones de §5 no cambian: usan 2025 USGS M≥4.
 
-**Límites.** Las magnitudes de EMSC proceden de muchas agencias y escalas; la cobertura de EMSC empieza el día de su activación (la ventana anterior de un periodo puede no tenerla); un enlace de duplicado no se deshace si una revisión posterior separa los dos avisos; el replay solo reproduce versiones de USGS.
+**Límites.** África y el interior de Brasil/Siberia siguen casi vacíos (poca sismicidad y sin catálogo abierto en tiempo real). ISC llega con retraso. Las magnitudes mezclan escalas. Un enlace de duplicado no se deshace si una revisión posterior separa los avisos. El replay solo reproduce versiones de USGS.
