@@ -1,83 +1,97 @@
 # Memoria técnica — Observatorio de actividad sísmica
 
-## 1. Procedencia y extracción
+## 0. Objetivo y flujo
 
-- Fuente live: feed USGS `all_day.geojson` (poll ~60 s).
-- Fuente histórica: USGS FDSN Event (`eventtype=earthquake`, M≥4, año 2025, ámbito mundial, por meses para no chocar el tope ~20k).
-- Mensaje Kafka: `source`, `ingested_at`, `mode`, `event`; clave = `event_id`.
-- Carga histórica ejecutada: **18 302** eventos publicados en 2025 (M≥4).
-- Registro de consultas: tabla `consulta_fdsn` (`sql/03_consulta_fdsn.sql`); cargas futuras escriben URL, ventana, `n_registros` y `extraido_en`.
+El observatorio responde: **¿qué sismicidad (live e histórica) hay, dónde y con qué magnitud/profundidad, sin mezclar revisiones ni inventar países?**
 
-## 2. Calidad de datos
+Flujo: productor USGS → Kafka → consumidor (valida, PIP país, idempotencia) → PostgreSQL → API FastAPI → panel Angular. Alcance histórico: **2025, mundial, M≥4, `eventtype=earthquake`**.
 
-- Validación explícita antes de persistir; rechazos en `cuarentena` con motivo.
-- Magnitud/profundidad nulas se conservan (`null`), nunca se rellenan con 0.
-- País por point-in-polygon sobre Natural Earth (`paises.geojson`); «Sin país asignado» si no hay cobertura (p. ej. océano).
-- Tipos distintos de `earthquake` se excluyen con motivo `tipo_excluido:*`.
+## 1. Extracción y procedencia
 
-Evidencias: `docs/evidencias/calidad.json`, `docs/evidencias/idempotencia.json`.
+| Conjunto | Fuente | Periodo / filtros | Extracción |
+|----------|--------|-------------------|------------|
+| Live | USGS `all_day.geojson` | ~24 h, todos los tipos en feed; no-earthquake a cuarentena | Poll ~60 s |
+| Histórico | USGS FDSN Event | 2025, M≥4, earthquake, por meses | `producer.history`; log en `consulta_fdsn` |
+| Geografía | Natural Earth (copia en `frontend/public/datos/paises.geojson`) | ADM0 | Mismo archivo en mapa y consumidor |
 
-## 3. Modelado
+Tipos/unidades: tiempos USGS en **ms Unix** → `TIMESTAMPTZ` UTC; coordenadas **lon, lat, depth_km**; magnitud decimal + `magType`; `null` nunca NaN.
 
-Ver `specs/001-observatorio-sismico/data-model.md` y `sql/01_schema.sql`.
-Tablas clave: `evento_actual`, `evento_version`, `cuarentena`, `publicado`, `pais`, `estado_ingesta`, `consulta_fdsn`.
-Replay aislado en schema `replay` (`sql/02_replay_schema.sql`).
+Automatización: Compose healthchecks; productor con backoff 429/5xx; histórico por meses sin truncar el tope ~20k.
 
-Diccionario breve:
+## 2. Diccionario de datos
 
-| Campo | Significado |
-|-------|-------------|
-| `event_id` | Identificador USGS del evento |
-| `updated` | Instantánea de revisión; clave de versión |
-| `mag` | Magnitud; puede ser null |
-| `country_id` | ADM0_A3 Natural Earth; null = sin país |
-| `mode` | `live` o `replay` en el mensaje Kafka |
+| Campo | Significado | Tipo / unidad | Ausencias |
+|-------|-------------|---------------|-----------|
+| `event_id` | Id USGS | texto | obligatorio |
+| `mag` | Magnitud | decimal | null permitido (ND) |
+| `mag_type` | Escala (ml, mb…) | texto | null |
+| `depth_km` | Profundidad | km | null; negativas no se rechazan a ciegas |
+| `event_time` | Ocurrencia | UTC | obligatorio |
+| `updated` | Revisión USGS | UTC | clave de versión |
+| `ingested_at` | Procesamiento propio | UTC | obligatorio al persistir |
+| `country_id` | ADM0_A3 | texto | null = sin país |
+| `mode` | live / replay | texto Kafka | — |
 
-Índices: `idx_evento_actual_event_time`, `idx_evento_actual_country`, `idx_evento_actual_mag`, PK en `event_id`.
+## 3. Calidad (6 dimensiones + acciones)
 
-## 4. Análisis (histórico 2025, M≥4)
+Conjunto de referencia: `evento_actual` (~18 492 filas tras live + histórico + pruebas).
 
-Consultado vía `GET /api/estadisticas?start=2025-01-01T00:00:00Z&end=2026-01-01T00:00:00Z&min_mag=4`.
+| Dimensión | Hallazgo | Acción | Después / límite |
+|-----------|----------|--------|------------------|
+| Completitud | 1 mag null; 0 place vacío; ~14 380 sin país; 0 depth null en actual | Conservar null; no rellenar con 0; país null como categoría | Mag ND en UI; «Sin país» en stats |
+| Unicidad | 0 duplicados `(event_id, updated)`; actual 1 fila/id | UNIQUE + upsert `DO NOTHING` / `WHERE updated <` | Evidencia `idempotencia.json` |
+| Validez | Coords fuera de rango → cuarentena | Rechazo con motivo | 1 caso sintético `coordenadas_fuera_de_rango` |
+| Consistencia | Revisón vieja no pisa; unidades UTC/km | Comparar `updated` | `idempotencia.json` |
+| Actualidad | `last_ingestion` + aviso stale en panel | Productor actualiza estado; UI umbral 3× poll | Panel |
+| Exactitud | No contrastamos mag física vs sismógrafo | Limitación USGS + mapa 1:110M | Documentado; no inventar “verdad” |
 
-1. **Dominio oceánico**: de 18 302 eventos, 14 350 quedan sin país asignado. La mayoría de la sismicidad M≥4 ocurre fuera de polígonos terrestres; tratar «Sin país» como categoría válida evita sesgar rankings nacionales.
-2. **Distribución de magnitud**: 16 173 en banda 4–5, 1 984 en 5–6 y 145 ≥6. Los grandes son raros; cualquier dashboard debe separar conteos por banda y no promediar a ciegas.
-3. **Países con más eventos terrestres en el top**: China (354), Chile (348), Indonesia (306). Coincide con cinturones activos conocidos; el panel permite filtrar por `country_id` para contrastar ventanas.
+Casos sintéticos de prueba (explosion, coords, mag null, océano) están identificados en `docs/evidencias/calidad.json` y **no** se mezclan como sismicidad real en las conclusiones.
 
-Capturas de filtros/agregados (JSON exportados de la API, reproducibles):
+## 4. Modelo conceptual / lógico / físico
 
-- `docs/evidencias/capturas/filtro-jun2025-m5.json` — junio 2025, M≥5
-- `docs/evidencias/capturas/stats-2025-m4.json` — año 2025, M≥4
+- **Conceptual**: Evento (hecho) — tiene Versiones; puede asociarse a País; Ingesta y Cuarentena registran proceso/rechazos.
+- **Lógico**: `evento_actual` (1 fila/evento), `evento_version` (1 fila/`id+updated`), `pais`, `publicado`, `estado_ingesta`, `cuarentena`, `consulta_fdsn`; schema `replay.*` aislado.
+- **Físico**: `sql/01_schema.sql`, `02_replay_schema.sql`, `03_consulta_fdsn.sql`. Índices en `event_time`, `country_id`, `mag` porque la API filtra por ventana/país/magnitud.
 
-Para la defensa, complementar con capturas de pantalla del panel (`npm start` + filtros).
+Medición: conteo de un mes con índice **0,167 ms** vs seq scan **1,054 ms** (~18k filas).
 
-## 5. Complejidad, mediciones y costes
+## 5. Análisis (≥3 conclusiones)
 
-### Operaciones justificadas
+Filtros y capturas: `docs/evidencias/capturas/`.
 
-| Operación | Estructura | Coste medio | Peor caso |
-|-----------|------------|-------------|-----------|
-| Buscar versión / actual por id | PK / UNIQUE `(event_id[, updated])` | O(log n) | O(log n) |
-| País (PIP) | Catálogo en memoria + Shapely | O(p) polígonos | O(p) por evento |
-| Agregación por ventana | Índice `event_time` + GROUP BY | O(k + log n) | O(n) sin índice útil |
+1. **Océano dominante (2025 M≥4)**: 18 302 eventos; 14 350 sin país. Conclusión: el ranking por país sin categoría «Sin país» sesgaría el análisis.
+2. **Magnitud**: 16 173 en 4–5, 1 984 en 5–6, 145 ≥6. Los ≥6 son raros; las medias globales sin bandas engañan.
+3. **Comparación equivalente**: media diaria 2025 M≥4 ≈ **50,14** (denominador 365 con días cero). Una ventana reciente de 24 h M≥4 debe contrastarse con esa media, avisando si el día actual está incompleto (`periodo.incompleto` / `avisos` en API).
 
-### Mediciones reales (PostgreSQL local, ~18 492 filas en `evento_actual`, equipo Windows + Docker)
+Top terrestre orientativo: China, Chile, Indonesia (filtros mismos M≥4 año 2025).
 
-| Tamaño / consulta | Resultado |
-|-------------------|-----------|
-| Pequeño: PK por `event_id` | Execution Time **0,063 ms** (Index Scan) |
-| Medio: conteo un mes 2025-01 con índice `event_time` | **0,167 ms** (Index Only Scan, 1413 filas) |
-| Mismo conteo **sin** índice (seq scan forzado) | **1,054 ms** (~6× más lento aquí) |
-| Almacenamiento | `evento_actual` ≈ **5,1 MB**; `evento_version` ≈ **20 MB** |
+## 6. Complejidad, mediciones, costes, mejoras
 
-A 100 millones de filas, el seq scan dejaría de ser viable para ventanas; harían falta particiones por tiempo, índices BRIN/BTREE y paginación API (`truncated`).
+| Tamaño | Operación | Tiempo | Memoria / tamaño |
+|--------|-----------|--------|------------------|
+| Pequeño | PK `event_id` | 0,063 ms | fila puntual |
+| Medio | Mes 2025 con índice tiempo | 0,167 ms | 1413 filas |
+| Grande relativo | Mismo mes sin índice | 1,054 ms | seq ~18k |
+| Almacenamiento | tablas | — | actual ~5,1 MB; versiones ~20 MB |
 
-### Costes (estimación, sin contratar cloud)
+A 10⁸ filas: particionar por tiempo, BRIN/BTREE, API paginada (`truncated`).
 
-- Hardware/electricidad: PC alumno + Docker continuo en defensa.
-- Almacenamiento: versiones JSONB crecen más que el actual.
-- Transferencia: USGS gratis con cuota; ngrok/Netlify free tier ≠ coste total cero (tiempo, límites).
-- Desarrollo: pipeline + panel + evidencias (orden de decenas de horas).
+Costes: PC+Docker, tiempo de desarrollo, almacenamiento de `payload_json`, cuotas USGS/ngrok/Netlify (free ≠ coste cero).
 
-## 6. Replay
+Mejoras: (1) subdividir FDSN si un mes → 20k; (2) cachear polígonos simplificados; (3) materializar agregados diarios si el panel crece.
 
-`python -m producer.replay` publica a `terremotos.replay` con `mode=replay`. El consumidor escribe solo en schema `replay`. Evidencia: `docs/evidencias/replay.md`.
+## 7. Evidencias §11
+
+| Prueba | Esperado | Observado | Evidencia |
+|--------|----------|-----------|-----------|
+| Evento nuevo | Visible API/mapa | 184+ live | `evento-nuevo.md` |
+| Reenvío | No sube conteo | OK | `idempotencia.json` |
+| Revisión nueva/vieja | Actualiza / no pisa | OK | idem |
+| Mag null / coords / mar | ND / cuarentena / sin país | OK | `calidad.json` |
+| Restart consumidor | Sin duplicar | OK | `restart-consumidor.md` |
+| Replay | Aislado | OK | `replay.md` |
+| Túnel down/up | UI tolera | Pendiente 002 | publicación |
+
+## 8. Replay
+
+Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.

@@ -60,6 +60,14 @@
     }
     <div class="stats-grid">
       <div>
+        <h3>Por hora UTC (últimas del periodo)</h3>
+        <ul class="bars">
+          @for (row of statsHour(); track row.hora) {
+            <li><span>{{ row.hora.slice(11, 16) }}</span><span class="bar" [style.width.%]="barWidth(row.count, statsHourMax())"></span><span>{{ row.count }}</span></li>
+          }
+        </ul>
+      </div>
+      <div>
         <h3>Por país</h3>
         <table>
           <thead><tr><th>País</th><th>N</th></tr></thead>

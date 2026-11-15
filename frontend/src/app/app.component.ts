@@ -62,6 +62,8 @@ export class AppComponent implements OnDestroy {
   readonly statsCountries = signal<CountryRow[]>([]);
   readonly statsMag = signal<BandRow[]>([]);
   readonly statsDepth = signal<BandRow[]>([]);
+  readonly statsHour = signal<{ hora: string; count: number }[]>([]);
+  readonly statsHourMax = signal(1);
   readonly statsMagMax = signal(1);
   readonly statsDepthMax = signal(1);
   readonly eventRows = signal<EventRow[]>([]);
@@ -224,24 +226,33 @@ export class AppComponent implements OnDestroy {
       const stats = await this.readJson<{
         resumen?: { total?: number; ultima_hora?: number; sin_magnitud?: number; sin_pais?: number; media_por_dia?: number; dias_cero?: number };
         por_pais?: CountryRow[];
+        por_hora?: { hora: string; count: number }[];
         distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
-        comparacion_historica?: { delta?: number };
+        comparacion_historica?: {
+          delta?: number;
+          referencia_2025?: { media_diaria?: number; total?: number };
+        };
         avisos?: string[];
       }>(`${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`, headers);
       const r = stats.resumen ?? {};
+      const ref = stats.comparacion_historica?.referencia_2025;
       this.statsSummary.set(
-        `Total ${r.total ?? 0} · última hora ${r.ultima_hora ?? 0} · media/día ${r.media_por_dia ?? 'ND'} · días cero ${r.dias_cero ?? 0}` +
+        `Total ${r.total ?? 0} · última hora UTC ${r.ultima_hora ?? 0} · media/día periodo ${r.media_por_dia ?? 'ND'} · días cero ${r.dias_cero ?? 0}` +
+        (ref?.media_diaria !== undefined ? ` · media diaria 2025 (mismos filtros) ${ref.media_diaria}` : '') +
         (stats.comparacion_historica?.delta !== undefined ? ` · Δ vs ventana anterior ${stats.comparacion_historica.delta}` : '')
       );
       this.statsAvisos.set(stats.avisos ?? []);
       const countries = stats.por_pais ?? [];
       const mag = stats.distribuciones?.magnitud ?? [];
       const depth = stats.distribuciones?.profundidad_km ?? [];
+      const hours = (stats.por_hora ?? []).slice(-24);
       this.statsCountries.set(countries.slice(0, 12));
       this.statsMag.set(mag);
       this.statsDepth.set(depth);
+      this.statsHour.set(hours);
       this.statsMagMax.set(Math.max(1, ...mag.map((x) => x.count)));
       this.statsDepthMax.set(Math.max(1, ...depth.map((x) => x.count)));
+      this.statsHourMax.set(Math.max(1, ...hours.map((x) => x.count)));
     } catch {
       this.statsSummary.set('No se pudieron cargar las estadísticas');
     }

@@ -5,8 +5,8 @@
 
 ## Phase 1: Preparación
 
-- [ ] T201 Documentar en README el procedimiento Compose → ngrok → Netlify (FR-005)
-- [ ] T202 [P] Añadir placeholder de origen Netlify en `.env.example` (`CORS_ORIGINS`) sin secretos (FR-003)
+- [x] T201 Documentar en README el procedimiento Compose → ngrok → Netlify (FR-005)
+- [x] T202 [P] Añadir placeholder de origen Netlify en `.env.example` (`CORS_ORIGINS`) sin secretos (FR-003)
 
 ## Phase 2: API y CORS
 

@@ -280,6 +280,15 @@ def estadisticas(
                 """,
                 params,
             ).fetchall()
+
+            # Media diaria 2025 con los mismos filtros (denominador = 365, días cero incluidos)
+            ref_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+            ref_end = datetime(2026, 1, 1, tzinfo=timezone.utc)
+            ref_where, ref_params = _event_filters(ref_start, ref_end, min_mag, country_id)
+            ref_total = conn.execute(
+                f"SELECT COUNT(*) FROM {table} e WHERE {ref_where}",
+                ref_params,
+            ).fetchone()[0]
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"error al consultar: {exc}") from exc
 
@@ -359,7 +368,15 @@ def estadisticas(
                 "total": prev_total,
             },
             "delta": total - prev_total,
-            "nota": "Compara con la ventana inmediatamente anterior de igual duración. Media diaria con días cero en el denominador.",
+            "referencia_2025": {
+                "start": "2025-01-01T00:00:00Z",
+                "end": "2026-01-01T00:00:00Z",
+                "total": ref_total,
+                "dias_denominador": 365,
+                "media_diaria": round(ref_total / 365, 4),
+                "filtros_equivalentes": True,
+            },
+            "nota": "Ventana anterior de igual duración + media diaria 2025 con mismos min_mag/country_id (días cero en denominador).",
         },
         "avisos": avisos,
         "registros_sin_valor": {

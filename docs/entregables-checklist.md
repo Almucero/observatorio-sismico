@@ -1,35 +1,32 @@
 # Checklist frente a GUIA-ENTREGABLES
 
-Estado a 2026-11-15. Norma: `docs/requisitos/GUIA-ENTREGABLES.md`.
+Norma: `docs/requisitos/GUIA-ENTREGABLES.md`.
 
 ## 1. Repositorio
 
 | Ítem | Estado |
 |------|--------|
 | Productor / consumidor / API / frontend | Hecho |
-| Histórico (`producer.history`) y replay (`producer.replay`) | Hecho |
-| `Dockerfile` + `compose.yaml` (5 servicios) | Hecho |
-| `requirements.txt`, `frontend/package.json` + lock | Hecho |
-| `.env.example` sin secretos | Hecho |
-| `README.md` reproducible | Hecho |
-| Enlace remoto accesible al profesor | Pendiente de push (auth GitHub) |
+| Histórico y replay | Hecho |
+| Dockerfile + compose (5 servicios) | Hecho |
+| Dependencias + `.env.example` | Hecho |
+| README reproducible | Hecho |
+| Remoto | https://github.com/Almucero/observatorio-sismico |
 
-## 2. Memoria
+## 2. Memoria / rúbrica
 
-| Ítem | Estado |
-|------|--------|
-| Procedencia, calidad, modelo, diccionario | `docs/memoria.md` |
-| Análisis con conclusiones reales 2025 M≥4 | Hecho |
-| Complejidad 3 tamaños y costes | Hecho |
-| Evidencias SQL / pruebas | `docs/evidencias/` |
+| Criterio | Evidencia |
+|----------|-----------|
+| Extracción | §1 memoria + `consulta_fdsn` + histórico |
+| Calidad | §3 memoria (6 dimensiones + acciones) + `calidad.json` |
+| Modelado | §4 + SQL + índices medidos |
+| Análisis | §5 + capturas JSON + stats/API |
+| Reflexión | §6 mediciones/costes/mejoras |
 
 ## 3. Panel y defensa
 
 | Ítem | Estado |
 |------|--------|
-| Panel modo API local con filtros y estadísticas | Hecho |
-| Etiqueta REPRODUCCIÓN | Hecho (`dataMode`) |
-| Netlify + CORS origen exacto | Pendiente → `specs/002-despliegue-netlify-ngrok/` |
-| ngrok + evidencias túnel | Pendiente → `specs/002-despliegue-netlify-ngrok/` |
-
-Huecos menores de la 001 (tabla eventos, aviso stale, FR-014, mediciones §10, capturas): ver Phase 11 Convergence en `specs/001-observatorio-sismico/tasks.md`.
+| Mapa, filtros, tabla, stats, por hora, stale | Hecho (local) |
+| REPRODUCCIÓN | `dataMode=replay` |
+| Netlify + ngrok + túnel | `docs/DESPLIEGUE.md` / feature 002 |
