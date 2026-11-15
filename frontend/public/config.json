@@ -1,6 +1,6 @@
 {
   "mode": "api",
-  "apiUrl": "http://127.0.0.1:8000",
+  "apiUrl": "https://jasmine-unpainted-oat.ngrok-free.dev",
   "refreshMs": 60000,
   "skipNgrokWarning": true,
   "dataMode": "live"
