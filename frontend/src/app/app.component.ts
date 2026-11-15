@@ -120,6 +120,8 @@ const LABEL_ALTITUDE = 0.012;
 const LABEL_CHAR_PX = 8;
 const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 5500;
+// Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
+const POLAR_ZOOM_LIMIT = 0.87;
 // El histórico de 2025 cargado solo contiene terremotos de magnitud 4 o mayor
 const HISTORY_MIN_MAG = 4;
 const DEPTH_COLORS = { shallow: '#38bdf8', mid: '#6366f1', deep: '#c084fc', unknown: '#94a3b8' };
@@ -499,7 +501,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     // El giro solo se detiene al pulsar o arrastrar y con el ratón sobre un terremoto.
     // El globo recuerda la última posición del ratón, así que fuera del lienzo no cuenta
     const onQuake = this.hovering && this.pointerOver;
-    this.globe.controls().autoRotate = !this.dragging && !onQuake && now > this.rotateAfter;
+    const controls = this.globe.controls();
+    controls.autoRotate = !this.dragging && !onQuake && now > this.rotateAfter;
+    controls.zoomToCursor =
+      Math.abs(camera.position.y) < camera.position.length() * POLAR_ZOOM_LIMIT;
     this.animateGlow(time, altitude, halfFov);
     this.animateQuakes(time, altitude, halfFov);
     this.placeLabels(altitude, camera);

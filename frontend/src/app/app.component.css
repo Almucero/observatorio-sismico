@@ -95,13 +95,13 @@
   to { rotate: 360deg; }
 }
 
-.globe { z-index: 1; }
-
+/* Capas: los rótulos de país usan z-index de 1 a ~200 (los asigna el globo), los paneles
+   van por encima y la ficha del terremoto (styles.css) por encima de todo */
 .dock {
   position: absolute;
   left: 14px;
   right: 14px;
-  z-index: 2;
+  z-index: 500;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -110,7 +110,7 @@
 }
 
 /* La fila superior va por encima para que sus avisos nunca queden tapados */
-.dock.top { top: 14px; z-index: 3; }
+.dock.top { top: 14px; z-index: 501; }
 .dock.bottom { bottom: 14px; align-items: flex-end; }
 
 /* Altura fija por fila: plegar un panel no altera al de al lado */
@@ -814,7 +814,7 @@ tbody tr:hover { background-color: rgba(56, 189, 248, 0.1); }
 
 .tip {
   position: absolute;
-  z-index: 10;
+  z-index: 1100;
   width: max-content;
   max-width: 256px;
   padding: 8px 11px;
