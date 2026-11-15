@@ -1,6 +1,29 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import Globe, { type GlobeInstance } from 'globe.gl';
-import type { Feature, FeatureCollection, Geometry, Point, Position } from 'geojson';
+import type { FeatureCollection, Point } from 'geojson';
+import {
+  CanvasTexture,
+  CircleGeometry,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  SRGBColorSpace,
+  Vector3,
+  type Object3D,
+  type PerspectiveCamera,
+  type ShaderMaterial,
+} from 'three';
 
 type Properties = {
   mag: number | null;
@@ -20,6 +43,14 @@ type Events = FeatureCollection<Point, Properties> & {
     total?: number;
   };
 };
+type StatsResponse = {
+  periodo?: { start?: string; end?: string };
+  resumen?: { total?: number; ultima_hora?: number; media_por_dia?: number };
+  por_pais?: CountryRow[];
+  distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
+  comparacion_historica?: { referencia_2025?: { media_diaria?: number } };
+  avisos?: string[];
+};
 type Config = {
   mode: 'demo' | 'api';
   apiUrl: string;
@@ -29,13 +60,26 @@ type Config = {
 };
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
+type StatsView = {
+  total: string;
+  lastHour: string;
+  dailyAvg: string;
+  ref2025: string;
+  avisos: string[];
+  countries: CountryRow[];
+  mag: BandRow[];
+  depth: BandRow[];
+};
 type EventRow = {
   id: string;
   place: string;
-  mag: number | null;
+  mag: string;
+  depth: string;
+  color: string;
   time: string;
   country: string;
 };
+type QuakeNode = { core: Mesh; wave: Mesh<CircleGeometry, MeshBasicMaterial> };
 type GlobePoint = {
   lat: number;
   lng: number;
@@ -43,138 +87,140 @@ type GlobePoint = {
   color: string;
   label: string;
   phase: number;
+  node?: QuakeNode;
 };
-type CountryLabel = { lat: number; lng: number; name: string };
+type CountryLabel = {
+  lat: number;
+  lng: number;
+  rank: number;
+  width: number;
+  normal: Vector3;
+  shown: boolean;
+  el: HTMLElement;
+};
 type Star = { x: number; y: number; size: number; duration: number; delay: number };
-type PanelId = 'tl' | 'tr' | 'bl' | 'br';
+type PanelId = 'estado' | 'filtros' | 'stats' | 'eventos';
+type StatusLevel = 'ok' | 'warn' | 'error' | 'idle';
+
+const GLOBE_RADIUS = 100;
+const MAX_TABLE_ROWS = 300;
+// Fracción del radio de la textura donde acaba el disco y donde va el anillo de la onda
+const DOT_EDGE = 0.72;
+const WAVE_EDGE = 0.87;
+const LABEL_ALTITUDE = 0.012;
+// Ancho medio por letra del rótulo (10 px en mayúsculas con espaciado)
+const LABEL_CHAR_PX = 8;
+const DEPTH_COLORS = { shallow: '#38bdf8', mid: '#6366f1', deep: '#c084fc', unknown: '#94a3b8' };
+const EMPTY_STATS: StatsView = {
+  total: '—',
+  lastHour: '—',
+  dailyAvg: '—',
+  ref2025: '—',
+  avisos: [],
+  countries: [],
+  mag: [],
+  depth: [],
+};
 
 @Component({
   selector: 'app-root',
   standalone: true,
+  imports: [NgTemplateOutlet],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
 export class AppComponent implements AfterViewInit, OnDestroy {
   @ViewChild('globeHost', { static: true }) globeHost!: ElementRef<HTMLDivElement>;
 
-  readonly starField: Star[] = Array.from({ length: 280 }, () => ({
+  readonly depthColors = DEPTH_COLORS;
+  readonly starField: Star[] = Array.from({ length: 420 }, () => ({
     x: Math.random() * 100,
     y: Math.random() * 100,
-    size: 0.8 + Math.random() * 2.6,
+    size: 0.8 + Math.random() * 2.2,
     duration: 1.4 + Math.random() * 4.2,
     delay: Math.random() * 6,
   }));
 
-  readonly mode = signal('Cargando…');
-  readonly status = signal('Preparando globo');
+  readonly mode = signal('…');
+  readonly status = signal('Cargando');
+  readonly apiFailed = signal(false);
   readonly lastRead = signal('—');
   readonly generated = signal('—');
   readonly lastIngestion = signal('—');
+  readonly period = signal('—');
   readonly staleWarning = signal('');
   readonly count = signal(0);
+  readonly total = signal(0);
   readonly omitted = signal(0);
   readonly truncated = signal(false);
   readonly startLocal = signal('');
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
-  readonly statsTotal = signal('—');
-  readonly statsLastHour = signal('—');
-  readonly statsDailyAvg = signal('—');
-  readonly statsRef2025 = signal('—');
-  readonly statsAvisos = signal<string[]>([]);
-  readonly statsCountries = signal<CountryRow[]>([]);
-  readonly statsMag = signal<BandRow[]>([]);
-  readonly statsDepth = signal<BandRow[]>([]);
-  readonly statsMagMax = signal(1);
-  readonly statsDepthMax = signal(1);
+  readonly stats = signal<StatsView>(EMPTY_STATS);
   readonly eventRows = signal<EventRow[]>([]);
-  readonly panelTl = signal(false);
-  readonly panelTr = signal(false);
-  readonly panelBl = signal(false);
-  readonly panelBr = signal(false);
+  readonly collapsed = signal<Record<PanelId, boolean>>({
+    estado: false,
+    filtros: false,
+    stats: false,
+    eventos: false,
+  });
+
+  readonly statusLevel = computed<StatusLevel>(() => {
+    if (this.apiFailed()) return 'error';
+    if (this.status() === 'Cargando') return 'idle';
+    return this.staleWarning() || this.truncated() ? 'warn' : 'ok';
+  });
+  readonly warnings = computed(() => {
+    const list: string[] = [];
+    if (this.apiFailed()) list.push('La API o el túnel no responden. Se mantiene la última lectura correcta.');
+    if (this.staleWarning()) list.push(this.staleWarning());
+    if (this.truncated()) {
+      list.push(`Respuesta truncada: se muestran ${this.count()} de ${this.total()} terremotos.`);
+    }
+    return list;
+  });
+
+  private readonly zone = inject(NgZone);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly dateFormat = new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  private readonly disc = new CircleGeometry(1, 48);
+  private readonly dotMaterials = new Map<string, MeshBasicMaterial>();
+  private waveTexture?: CanvasTexture;
 
   private globe?: GlobeInstance;
+  private glow?: Object3D;
   private timer?: ReturnType<typeof setTimeout>;
   private resumeRotateTimer?: ReturnType<typeof setTimeout>;
-  private pulseTimer?: ReturnType<typeof setInterval>;
+  private frame = 0;
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
-  private lastPoints: GlobePoint[] = [];
+  private points: GlobePoint[] = [];
+  private labels: CountryLabel[] = [];
+  private labelsPlacedAt = 0;
+  private viewportHeight = 1;
+  private auraRadius = 0;
   private onResize = () => this.resizeGlobe();
-  private onControlsChange = () => this.syncVisuals();
   private onUserInteract = () => this.pauseAutoRotate();
 
   ngAfterViewInit(): void {
-    const ocean = this.flatTexture('#0a1628');
-    this.globe = new Globe(this.globeHost.nativeElement, {
-      animateIn: false,
-      waitForGlobeReady: true,
-    })
-      .globeImageUrl(ocean)
-      .backgroundColor('rgba(0,0,0,0)')
-      .showAtmosphere(true)
-      .atmosphereColor('#38bdf8')
-      .atmosphereAltitude(0.28)
-      .polygonsData([])
-      .polygonCapColor(() => '#0a1628')
-      .polygonSideColor(() => '#0a1628')
-      .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
-      .polygonAltitude(0.004)
-      .polygonsTransitionDuration(0)
-      .labelsData([])
-      .labelLat('lat')
-      .labelLng('lng')
-      .labelText('name')
-      .labelColor(() => 'rgba(186, 230, 253, 0.82)')
-      .labelSize(0.55)
-      .labelDotRadius(0)
-      .labelAltitude(0.012)
-      .labelResolution(2)
-      .labelsTransitionDuration(0)
-      .htmlElementsData([])
-      .htmlLat('lat')
-      .htmlLng('lng')
-      .htmlAltitude(0.018)
-      .htmlElement((d: object) => this.makeQuakeEl(d as GlobePoint))
-      .htmlElementVisibilityModifier((el: HTMLElement, visible: boolean) => {
-        el.style.opacity = visible ? '1' : '0';
-        el.style.pointerEvents = visible ? 'auto' : 'none';
-      })
-      .htmlTransitionDuration(0)
-      .ringsData([])
-      .ringColor(() => (t: number) => `rgba(56, 189, 248, ${Math.max(0, 0.5 * (1 - t))})`)
-      .ringMaxRadius((d: object) => 0.8 + (d as GlobePoint).baseSize)
-      .ringPropagationSpeed(1.8)
-      .ringRepeatPeriod(2000)
-      .enablePointerInteraction(true);
-
-    const controls = this.globe.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.55;
-    controls.enableZoom = true;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.minDistance = 120;
-    controls.addEventListener('change', this.onControlsChange);
-    controls.addEventListener('start', this.onUserInteract);
-    this.globeHost.nativeElement.addEventListener('wheel', this.onUserInteract, { passive: true });
-    this.globeHost.nativeElement.addEventListener('pointerdown', this.onUserInteract);
-
-    this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
-    this.resizeGlobe();
-    window.addEventListener('resize', this.onResize);
-    this.pulseTimer = setInterval(() => this.syncVisuals(), 50);
-    void this.loadBorders();
+    this.zone.runOutsideAngular(() => this.createGlobe());
+    void this.loadCountries();
     void this.bootstrap();
   }
 
-  togglePanel(id: PanelId): void {
-    if (id === 'tl') this.panelTl.update((v) => !v);
-    if (id === 'tr') this.panelTr.update((v) => !v);
-    if (id === 'bl') this.panelBl.update((v) => !v);
-    if (id === 'br') this.panelBr.update((v) => !v);
+  isCollapsed(id: PanelId): boolean {
+    return this.collapsed()[id];
+  }
+
+  toggle(id: PanelId): void {
+    this.collapsed.update((state) => ({ ...state, [id]: !state[id] }));
   }
 
   onStart(event: Event): void {
@@ -196,8 +242,60 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     void this.refresh();
   }
 
-  barWidth(value: number, max: number): number {
-    return Math.max(6, Math.round((value / Math.max(max, 1)) * 100));
+  clearFilters(): void {
+    this.startLocal.set('');
+    this.endLocal.set('');
+    this.minMag.set(null);
+    this.countryId.set('');
+    this.applyFilters();
+  }
+
+  barWidth(value: number, rows: { count: number }[]): number {
+    const max = Math.max(1, ...rows.map((row) => row.count));
+    return Math.max(4, Math.round((value / max) * 100));
+  }
+
+  bandLabel(band: string): string {
+    return band === 'ND' ? 'Sin dato' : band.replace('>=', '≥ ').replace('<', '< ');
+  }
+
+  private createGlobe(): void {
+    const el = this.globeHost.nativeElement;
+    this.globe = new Globe(el, { animateIn: false, waitForGlobeReady: true })
+      .globeImageUrl(this.flatTexture('#0a1628'))
+      .backgroundColor('rgba(0,0,0,0)')
+      .showAtmosphere(true)
+      .atmosphereColor('#3b9dff')
+      .atmosphereAltitude(0.3)
+      .polygonsData([])
+      .polygonCapColor(() => '#0a1628')
+      .polygonSideColor(() => '#0a1628')
+      .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
+      .polygonAltitude(0.004)
+      .polygonsTransitionDuration(0)
+      .objectsData([])
+      .objectAltitude(0.01)
+      .objectThreeObject((d: object) => this.buildQuake(d as GlobePoint))
+      .objectLabel('label')
+      .htmlElementsData([])
+      .htmlAltitude(LABEL_ALTITUDE)
+      .htmlElement((d: object) => (d as CountryLabel).el)
+      .htmlTransitionDuration(0);
+
+    const controls = this.globe.controls();
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.55;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = GLOBE_RADIUS * 1.2;
+    controls.maxDistance = GLOBE_RADIUS * 6;
+    controls.addEventListener('start', this.onUserInteract);
+    el.addEventListener('wheel', this.onUserInteract, { passive: true });
+
+    this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
+    this.resizeGlobe();
+    window.addEventListener('resize', this.onResize);
+    this.frame = requestAnimationFrame(this.animate);
   }
 
   private flatTexture(color: string): string {
@@ -211,49 +309,157 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return canvas.toDataURL('image/png');
   }
 
-  private altitude(): number {
-    return this.globe?.pointOfView()?.altitude ?? 2.2;
+  // lighten mezcla el color con blanco (0 = color puro, 1 = blanco)
+  private rgba(hex: string, alpha: number, lighten = 0): string {
+    const n = parseInt(hex.slice(1), 16);
+    const channel = (shift: number) =>
+      Math.round(((n >> shift) & 255) * (1 - lighten) + 255 * lighten);
+    return `rgba(${channel(16)}, ${channel(8)}, ${channel(0)}, ${alpha})`;
   }
 
-  private zoomFactor(): number {
-    const alt = this.altitude();
-    const t = Math.max(0, Math.min(1, (alt - 0.35) / 2.0));
-    return 0.2 + t * 1.15;
+  private radialTexture(stops: [number, string][]): CanvasTexture {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    for (const [offset, color] of stops) gradient.addColorStop(offset, color);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
   }
 
-  private htmlPx(point: GlobePoint): number {
-    const t = Date.now() / 1000;
-    const breathe = 1 + 0.22 * Math.sin(t * 3.2 + point.phase);
-    return Math.max(7, 11 * point.baseSize * this.zoomFactor() * breathe);
+  // Disco nítido hasta DOT_EDGE del radio, con borde claro y un halo tenue alrededor
+  private dotMaterial(color: string): MeshBasicMaterial {
+    let material = this.dotMaterials.get(color);
+    if (!material) {
+      const map = this.radialTexture([
+        [0, this.rgba(color, 0.95, 0.7)],
+        [0.3, this.rgba(color, 0.9, 0.1)],
+        [DOT_EDGE - 0.1, this.rgba(color, 0.85)],
+        [DOT_EDGE - 0.03, this.rgba(color, 1, 0.5)],
+        [DOT_EDGE + 0.02, this.rgba(color, 0.28)],
+        [1, this.rgba(color, 0)],
+      ]);
+      material = new MeshBasicMaterial({ map, transparent: true, depthWrite: false });
+      this.dotMaterials.set(color, material);
+    }
+    return material;
   }
 
-  private makeQuakeEl(point: GlobePoint): HTMLElement {
-    const el = document.createElement('div');
-    el.className = 'quake';
-    el.style.setProperty('--c', point.color);
-    el.style.setProperty('--s', `${this.htmlPx(point)}px`);
-    el.style.setProperty('--delay', `${(point.phase % 2).toFixed(2)}s`);
-    el.title = point.label.replace(/<br\s*\/?>/gi, '\n');
-    (el as HTMLElement & { __point?: GlobePoint }).__point = point;
-    return el;
-  }
-
-  private syncVisuals(): void {
-    if (!this.globe) return;
-    const t = Date.now() / 1000;
-    const breath = 0.24 + 0.1 * (0.5 + 0.5 * Math.sin(t * 1.15));
-    this.globe.atmosphereAltitude(breath);
-    this.globe.atmosphereColor(
-      `rgb(${56 + Math.round(30 * Math.sin(t * 0.9))}, ${160 + Math.round(40 * Math.sin(t * 1.1 + 1))}, 248)`
+  private buildQuake(point: GlobePoint): Object3D {
+    this.waveTexture ??= this.radialTexture([
+      [0, 'rgba(255, 255, 255, 0)'],
+      [WAVE_EDGE - 0.14, 'rgba(255, 255, 255, 0)'],
+      [WAVE_EDGE, 'rgba(255, 255, 255, 1)'],
+      [1, 'rgba(255, 255, 255, 0)'],
+    ]);
+    const core = new Mesh(this.disc, this.dotMaterial(point.color));
+    const wave = new Mesh(
+      this.disc,
+      new MeshBasicMaterial({
+        map: this.waveTexture,
+        color: point.color,
+        transparent: true,
+        depthWrite: false,
+      })
     );
+    wave.raycast = () => {};
+    wave.renderOrder = 1;
+    core.renderOrder = 2;
+    point.node = { core, wave };
+    return new Group().add(wave, core);
+  }
 
-    if (!this.lastPoints.length) return;
-    const nodes = this.globeHost.nativeElement.querySelectorAll('.quake');
-    nodes.forEach((node) => {
-      const el = node as HTMLElement & { __point?: GlobePoint };
-      if (!el.__point) return;
-      el.style.setProperty('--s', `${this.htmlPx(el.__point)}px`);
+  private animate = (): void => {
+    this.frame = requestAnimationFrame(this.animate);
+    if (!this.globe) return;
+    const camera = this.globe.camera() as PerspectiveCamera;
+    const altitude = camera.position.length() / GLOBE_RADIUS - 1;
+    const halfFov = Math.tan((camera.fov * Math.PI) / 360);
+    const time = performance.now() / 1000;
+    this.animateGlow(time, altitude, halfFov);
+    this.animateQuakes(time, altitude, halfFov);
+    this.placeLabels(altitude, camera);
+  };
+
+  // Radio en píxeles casi constante: grandes de lejos y algo menores al acercar
+  private animateQuakes(time: number, altitude: number, halfFov: number): void {
+    const unitsPerPx =
+      (2 * Math.min(altitude, 2.6) * GLOBE_RADIUS * halfFov) / this.viewportHeight;
+    const farness = Math.max(0, Math.min(1, (altitude - 0.2) / 2));
+    const basePx = 5 + 4 * farness;
+    for (const point of this.points) {
+      const node = point.node;
+      if (!node) continue;
+      const radius = point.baseSize * basePx * unitsPerPx;
+      const beat = 1 + 0.14 * Math.sin(time * 3 + point.phase);
+      node.core.scale.setScalar((radius * beat) / DOT_EDGE);
+      const progress = (time / 2.4 + point.phase) % 1;
+      node.wave.scale.setScalar((radius * (1 + 2.2 * progress)) / WAVE_EDGE);
+      node.wave.material.opacity = 0.9 * (1 - progress) ** 2;
+    }
+  }
+
+  private animateGlow(time: number, altitude: number, halfFov: number): void {
+    if (!this.glow?.parent) this.glow = this.findAtmosphere();
+    const material = (this.glow as Mesh | undefined)?.material as ShaderMaterial | undefined;
+    if (material?.uniforms) {
+      material.uniforms['coefficient'].value = 0.1 + 0.035 * Math.sin(time * 0.9);
+      material.uniforms['power'].value = 3.4 + 0.5 * Math.sin(time * 0.55 + 1);
+    }
+    const radius =
+      ((this.viewportHeight / 2) * Math.tan(Math.asin(1 / (1 + altitude)))) / halfFov;
+    if (Math.abs(radius - this.auraRadius) > 0.5) {
+      this.auraRadius = radius;
+      this.host.nativeElement.style.setProperty('--globe-r', `${radius.toFixed(1)}px`);
+    }
+  }
+
+  private findAtmosphere(): Object3D | undefined {
+    let found: Object3D | undefined;
+    this.globe?.scene().traverse((obj) => {
+      if ((obj as Object3D & { __globeObjType?: string }).__globeObjType === 'atmosphere') {
+        found = obj;
+      }
     });
+    return found;
+  }
+
+  // Reparto de rótulos sin solapes: primero los países de mayor rango (LABELRANK de
+  // Natural Earth) y los que ya estaban visibles; al acercar entran rangos menores
+  private placeLabels(altitude: number, camera: PerspectiveCamera): void {
+    const now = performance.now();
+    if (!this.globe || now - this.labelsPlacedAt < 150) return;
+    this.labelsPlacedAt = now;
+    const maxRank = altitude > 1.9 ? 3 : altitude > 1.2 ? 4 : altitude > 0.7 ? 5 : 9;
+    const toCamera = camera.position.clone().normalize();
+    const minFacing = GLOBE_RADIUS / camera.position.length() + 0.1;
+    const candidates = this.labels
+      .filter((label) => label.rank <= maxRank && label.normal.dot(toCamera) > minFacing)
+      .sort((a, b) => a.rank - b.rank || Number(b.shown) - Number(a.shown));
+
+    const placed: { x: number; y: number; width: number }[] = [];
+    const visible = new Set<CountryLabel>();
+    for (const label of candidates) {
+      const { x, y } = this.globe.getScreenCoords(label.lat, label.lng, LABEL_ALTITUDE);
+      const free = placed.every(
+        (other) =>
+          Math.abs(other.x - x) > (other.width + label.width) / 2 || Math.abs(other.y - y) > 18
+      );
+      if (!free) continue;
+      placed.push({ x, y, width: label.width });
+      visible.add(label);
+    }
+    for (const label of this.labels) {
+      const show = visible.has(label);
+      if (show === label.shown) continue;
+      label.shown = show;
+      label.el.classList.toggle('shown', show);
+    }
   }
 
   private pauseAutoRotate(): void {
@@ -269,59 +475,40 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private resizeGlobe(): void {
     if (!this.globe) return;
     const el = this.globeHost.nativeElement;
+    this.viewportHeight = Math.max(1, el.clientHeight);
     this.globe.width(el.clientWidth);
     this.globe.height(el.clientHeight);
-    this.syncVisuals();
   }
 
-  private featureCentroid(feature: Feature<Geometry>): CountryLabel | null {
-    const props = feature.properties as { NAME?: string; ADMIN?: string; LABELRANK?: number } | null;
-    const rank = props?.LABELRANK ?? 99;
-    if (rank > 4) return null;
-    const name = props?.NAME || props?.ADMIN;
-    if (!name) return null;
-
-    const geom = feature.geometry;
-    if (!geom) return null;
-    const rings: Position[][] = [];
-    if (geom.type === 'Polygon') rings.push(...geom.coordinates);
-    if (geom.type === 'MultiPolygon') {
-      for (const poly of geom.coordinates) rings.push(...poly);
-    }
-    if (!rings.length) return null;
-
-    let best = rings[0];
-    let bestLen = best.length;
-    for (const ring of rings) {
-      if (ring.length > bestLen) {
-        best = ring;
-        bestLen = ring.length;
-      }
-    }
-
-    let sx = 0;
-    let sy = 0;
-    let n = 0;
-    for (const pos of best) {
-      const [lng, lat] = pos;
-      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
-      sx += lng;
-      sy += lat;
-      n++;
-    }
-    if (!n) return null;
-    return { lat: sy / n, lng: sx / n, name };
+  private buildLabel(props: Record<string, unknown>): CountryLabel[] {
+    const name = String(props['NAME_ES'] ?? props['NAME'] ?? '');
+    const lat = Number(props['LABEL_Y']);
+    const lng = Number(props['LABEL_X']);
+    if (!name || !this.globe || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+    const el = document.createElement('div');
+    el.className = 'country-label';
+    el.textContent = name;
+    const { x, y, z } = this.globe.getCoords(lat, lng, 0);
+    return [
+      {
+        lat,
+        lng,
+        rank: Number(props['LABELRANK'] ?? 9),
+        width: name.length * LABEL_CHAR_PX + 8,
+        normal: new Vector3(x, y, z).normalize(),
+        shown: false,
+        el,
+      },
+    ];
   }
 
-  private async loadBorders(): Promise<void> {
+  private async loadCountries(): Promise<void> {
     try {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
       const features = countries.features ?? [];
       this.globe?.polygonsData(features);
-      const labels = features
-        .map((f) => this.featureCentroid(f))
-        .filter((x): x is CountryLabel => x !== null);
-      this.globe?.labelsData(labels);
+      this.labels = features.flatMap((feature) => this.buildLabel(feature.properties ?? {}));
+      this.globe?.htmlElementsData(this.labels);
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -333,12 +520,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       if (!['demo', 'api'].includes(config.mode)) throw new Error('Modo inválido');
       this.config = config;
       const replay = config.dataMode === 'replay';
-      this.mode.set(
-        config.mode === 'demo' ? 'DEMO' : replay ? 'REPRODUCCIÓN' : 'LIVE'
-      );
+      this.mode.set(config.mode === 'demo' ? 'DEMO' : replay ? 'REPRODUCCIÓN' : 'LIVE');
       await this.refresh();
     } catch {
-      this.status.set('Error en config.json');
+      this.status.set('Sin config.json');
+      this.apiFailed.set(true);
     }
   }
 
@@ -367,30 +553,34 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private updateStale(lastIngestionMs: number | null | undefined, refreshMs: number): void {
     if (typeof lastIngestionMs !== 'number' || !Number.isFinite(lastIngestionMs)) {
-      this.staleWarning.set('Sin última ingesta de USGS');
+      this.staleWarning.set('No consta ninguna ingesta de USGS.');
       return;
     }
     const ageMs = Date.now() - lastIngestionMs;
     const threshold = Math.max(180000, refreshMs * 3);
     this.staleWarning.set(
       ageMs > threshold
-        ? `Datos desactualizados: última ingesta hace ~${Math.round(ageMs / 60000)} min`
+        ? `Datos desactualizados: la última ingesta fue hace ${Math.round(ageMs / 60000)} min.`
         : ''
     );
   }
 
-  private depthColor(depth: number | null, depthOk: boolean): string {
-    if (!depthOk) return '#94a3b8';
-    if (depth! < 70) return '#38bdf8';
-    if (depth! < 300) return '#3b82f6';
-    return '#a78bfa';
+  private depthColor(depth: number | null): string {
+    if (depth === null) return DEPTH_COLORS.unknown;
+    if (depth < 70) return DEPTH_COLORS.shallow;
+    if (depth < 300) return DEPTH_COLORS.mid;
+    return DEPTH_COLORS.deep;
   }
 
-  private applyPoints(points: GlobePoint[]): void {
-    this.lastPoints = points;
-    this.globe?.htmlElementsData(points);
-    this.globe?.ringsData(points.filter((p) => p.baseSize >= 1.15).slice(0, 40));
-    this.syncVisuals();
+  private escape(text: string): string {
+    return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+  }
+
+  // Fase estable por evento para que el pulso no salte en cada refresco
+  private phaseOf(id: string): number {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 6283;
+    return hash / 1000;
   }
 
   private async refresh(): Promise<void> {
@@ -418,7 +608,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       for (const feature of data.features) {
         const p = feature.properties;
         const c = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : [];
-        const [lon, lat, depth] = c;
+        const [lon, lat, rawDepth] = c;
         if (
           !p ||
           !Number.isFinite(lon) ||
@@ -429,48 +619,53 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           omitted++;
           continue;
         }
+        const id = String(feature.id ?? 'ND');
         const magnitude = typeof p.mag === 'number' && Number.isFinite(p.mag) ? p.mag : null;
-        const depthOk = typeof depth === 'number' && Number.isFinite(depth);
-        const label = [
-          p.place ?? 'Sin descripción',
-          `Mag ${magnitude ?? 'ND'}`,
-          `Prof ${depthOk ? depth + ' km' : 'ND'}`,
-          this.date(p.time),
-          p.country_name ?? 'Sin país asignado',
-          String(feature.id ?? 'ND'),
-        ].join('<br/>');
+        const depth = typeof rawDepth === 'number' && Number.isFinite(rawDepth) ? rawDepth : null;
+        const row: EventRow = {
+          id,
+          place: p.place ?? 'Sin descripción',
+          mag: magnitude === null ? 'ND' : magnitude.toFixed(1),
+          depth: depth === null ? 'ND' : `${Math.round(depth)} km`,
+          color: this.depthColor(depth),
+          time: this.date(p.time),
+          country: p.country_name ?? 'Sin país asignado',
+        };
+        rows.push(row);
         points.push({
           lat,
           lng: lon,
-          baseSize: magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
-          color: this.depthColor(depthOk ? depth : null, depthOk),
-          label,
-          phase: Math.random() * Math.PI * 2,
-        });
-        rows.push({
-          id: String(feature.id ?? 'ND'),
-          place: p.place ?? 'Sin descripción',
-          mag: magnitude,
-          time: this.date(p.time),
-          country: p.country_name ?? 'Sin país',
+          baseSize:
+            magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
+          color: row.color,
+          label: [
+            `<b>${this.escape(row.place)}</b>`,
+            `Magnitud ${row.mag} · Profundidad ${row.depth}`,
+            `${row.time} · ${this.escape(row.country)}`,
+            `<small>${this.escape(id)}</small>`,
+          ].join('<br>'),
+          phase: this.phaseOf(id),
         });
       }
 
-      this.applyPoints(points);
+      this.points = points;
+      this.globe?.objectsData(points);
       this.count.set(points.length);
+      this.total.set(data.metadata?.total ?? points.length);
       this.omitted.set(omitted);
-      this.eventRows.set(rows.slice(0, 40));
+      this.eventRows.set(rows.slice(0, MAX_TABLE_ROWS));
       this.truncated.set(Boolean(data.metadata?.truncated));
       this.lastRead.set(this.date(Date.now()));
       this.generated.set(this.date(data.metadata?.generated));
       this.lastIngestion.set(this.date(data.metadata?.last_ingestion));
       this.updateStale(data.metadata?.last_ingestion ?? null, Number(config.refreshMs) || 60000);
-      this.status.set(config.mode === 'demo' ? 'Demo estática' : 'Conectada');
+      this.apiFailed.set(false);
+      this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
       if (config.mode === 'api') await this.loadStats(config, headers, qs);
     } catch {
       if (!this.destroyed) {
-        this.status.set('Fallo API/túnel (se conserva última lectura)');
-        if (this.lastPoints.length) this.applyPoints(this.lastPoints);
+        this.apiFailed.set(true);
+        this.status.set('Sin respuesta');
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
@@ -488,81 +683,52 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     qs: string
   ): Promise<void> {
     if (this.truncated()) {
-      this.statsTotal.set('—');
-      this.statsLastHour.set('—');
-      this.statsDailyAvg.set('—');
-      this.statsRef2025.set('—');
-      this.statsAvisos.set(['Respuesta truncada: sin estadísticas globales']);
-      this.statsCountries.set([]);
-      this.statsMag.set([]);
-      this.statsDepth.set([]);
+      this.stats.set({
+        ...EMPTY_STATS,
+        avisos: ['Respuesta truncada: no se calculan estadísticas globales sobre una muestra.'],
+      });
       return;
     }
     try {
-      const stats = await this.readJson<{
-        resumen?: {
-          total?: number;
-          ultima_hora?: number;
-          media_por_dia?: number;
-          dias_cero?: number;
-        };
-        por_pais?: CountryRow[];
-        distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
-        comparacion_historica?: { referencia_2025?: { media_diaria?: number }; delta?: number };
-        avisos?: string[];
-      }>(`${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`, headers);
-      const r = stats.resumen ?? {};
-      const ref = stats.comparacion_historica?.referencia_2025?.media_diaria;
-      this.statsTotal.set(String(r.total ?? 0));
-      this.statsLastHour.set(String(r.ultima_hora ?? 0));
-      this.statsDailyAvg.set(
-        typeof r.media_por_dia === 'number' ? r.media_por_dia.toFixed(1) : '—'
+      const data = await this.readJson<StatsResponse>(
+        `${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`,
+        headers
       );
-      this.statsRef2025.set(typeof ref === 'number' ? ref.toFixed(1) : '—');
-      this.statsAvisos.set(stats.avisos ?? []);
-      const mag = stats.distribuciones?.magnitud ?? [];
-      const depth = stats.distribuciones?.profundidad_km ?? [];
-      this.statsCountries.set((stats.por_pais ?? []).slice(0, 5));
-      this.statsMag.set(mag);
-      this.statsDepth.set(depth);
-      this.statsMagMax.set(Math.max(1, ...mag.map((x) => x.count)));
-      this.statsDepthMax.set(Math.max(1, ...depth.map((x) => x.count)));
+      const summary = data.resumen ?? {};
+      const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
+      this.stats.set({
+        total: String(summary.total ?? 0),
+        lastHour: String(summary.ultima_hora ?? 0),
+        dailyAvg:
+          typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
+        ref2025: typeof ref === 'number' ? ref.toFixed(1) : '—',
+        avisos: data.avisos ?? [],
+        countries: (data.por_pais ?? []).slice(0, 5),
+        mag: data.distribuciones?.magnitud ?? [],
+        depth: data.distribuciones?.profundidad_km ?? [],
+      });
+      const start = Date.parse(data.periodo?.start ?? '');
+      const end = Date.parse(data.periodo?.end ?? '');
+      this.period.set(`${this.date(start)} – ${this.date(end)}`);
     } catch {
-      this.statsTotal.set('—');
-      this.statsLastHour.set('—');
-      this.statsDailyAvg.set('—');
-      this.statsRef2025.set('—');
+      this.stats.set({ ...EMPTY_STATS, avisos: ['No se han podido cargar las estadísticas.'] });
     }
   }
 
   private date(value: unknown): string {
     if (typeof value !== 'number' || !Number.isFinite(value)) return 'ND';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return 'ND';
-    return (
-      d.toLocaleString('es-ES', {
-        timeZone: 'UTC',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }) + ' UTC'
-    );
+    return this.dateFormat.format(new Date(value));
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
     clearTimeout(this.timer);
     clearTimeout(this.resumeRotateTimer);
-    clearInterval(this.pulseTimer);
+    cancelAnimationFrame(this.frame);
     this.controller.abort();
     window.removeEventListener('resize', this.onResize);
-    const controls = this.globe?.controls();
-    controls?.removeEventListener('change', this.onControlsChange);
-    controls?.removeEventListener('start', this.onUserInteract);
+    this.globe?.controls().removeEventListener('start', this.onUserInteract);
     this.globeHost.nativeElement.removeEventListener('wheel', this.onUserInteract);
-    this.globeHost.nativeElement.removeEventListener('pointerdown', this.onUserInteract);
     try {
       (this.globe as { _destructor?: () => void } | undefined)?._destructor?.();
     } catch {

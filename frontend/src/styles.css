@@ -8,27 +8,41 @@ html, body {
 
 * { box-sizing: border-box; }
 
+/* Ficha del terremoto al pasar el ratón por un círculo */
+.float-tooltip-kap,
 .scene-tooltip {
-  color: #e2e8f0 !important;
-  background: rgba(8, 20, 40, 0.92) !important;
-  border: 1px solid rgba(59, 130, 246, 0.45);
-  border-radius: 8px;
-  padding: 8px 10px !important;
-  font-size: 12px;
-  line-height: 1.35;
+  padding: 9px 11px !important;
+  border: 1px solid rgba(125, 190, 255, 0.35);
+  border-radius: 10px !important;
+  background: rgba(8, 18, 36, 0.92) !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  color: #e6f1ff !important;
+  font: 12px/1.45 "Segoe UI", system-ui, sans-serif !important;
 }
 
-/* Oculta el badge "Powered by Netlify" */
-iframe[src*="netlify"],
-a[href*="netlify.com"],
-a[href*="netlify.app"][style*="position"],
-div[style*="position: fixed"][style*="bottom"] a[href*="netlify"],
-body > div:has(> a[href*="netlify.com"]) {
+.float-tooltip-kap small,
+.scene-tooltip small {
+  color: #8fa6c4;
+}
+
+/* Rótulos de país: el globo los coloca; aquí solo aspecto y visibilidad */
+.country-label {
+  color: rgba(186, 230, 253, 0.8);
+  font: 600 10px/1 "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-shadow: 0 0 3px #020617, 0 0 6px #020617;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.country-label.shown { opacity: 1; }
+
+/* El distintivo de Netlify es un iframe fijo que tapa la tabla de eventos */
+#nl-badge-frame,
+iframe[title="Powered by Netlify"] {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
 }
