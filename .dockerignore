@@ -1,0 +1,16 @@
+.git
+.cursor
+.specify
+specs
+docs
+frontend/node_modules
+frontend/dist
+frontend/.angular
+**/__pycache__
+**/*.pyc
+.venv
+venv
+.env
+data/raw
+*.md
+!requirements.txt

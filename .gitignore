@@ -25,3 +25,6 @@ Thumbs.db
 
 # Spec Kit local (si aparece)
 .specify/feature.json
+
+# Entorno local (el ejemplo sí se versiona)
+.env

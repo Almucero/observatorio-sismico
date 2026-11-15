@@ -1,1 +1,24 @@
-main { max-width: 1200px; margin: auto; padding: 24px; } h1 { margin: 8px 0; font-size: clamp(1.6rem, 4vw, 2.5rem); } .eyebrow { letter-spacing: .15em; font-size: .75rem; font-weight: 700; color: #176b70; } .info { padding: 16px; border-left: 4px solid #176b70; background: white; margin: 20px 0; } .info p { margin: 8px 0; } .map { height: 60vh; min-height: 360px; background: #dceaf1; border-radius: 10px; } footer { padding: 18px 0; } footer span { display: inline-block; margin: 8px 12px; } footer p { font-size: .9rem; color: #42596b; } small { overflow-wrap: anywhere; }
+main { max-width: 1200px; margin: auto; padding: 24px; }
+h1 { margin: 8px 0; font-size: clamp(1.6rem, 4vw, 2.5rem); }
+h2 { margin: 28px 0 8px; font-size: 1.25rem; }
+h3 { margin: 0 0 8px; font-size: 1rem; }
+.eyebrow { letter-spacing: .15em; font-size: .75rem; font-weight: 700; color: #176b70; }
+.info { padding: 16px; border-left: 4px solid #176b70; background: white; margin: 20px 0; }
+.info p { margin: 8px 0; }
+.warn { color: #9a3412; font-weight: 600; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; align-items: end; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: #42596b; }
+.filters input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.filters button { padding: 10px 14px; border: 0; border-radius: 6px; background: #176b70; color: white; cursor: pointer; }
+.map { height: 60vh; min-height: 360px; background: #dceaf1; border-radius: 10px; }
+.stats { margin-top: 24px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #e2e8f0; }
+.bars { list-style: none; padding: 0; margin: 0; }
+.bars li { display: grid; grid-template-columns: 64px 1fr 40px; gap: 8px; align-items: center; margin: 6px 0; font-size: .85rem; }
+.bar { display: block; height: 10px; background: #176b70; border-radius: 999px; }
+footer { padding: 18px 0; }
+footer span { display: inline-block; margin: 8px 12px; }
+footer p { font-size: .9rem; color: #42596b; }
+small { overflow-wrap: anywhere; }
