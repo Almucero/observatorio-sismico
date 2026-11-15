@@ -1,108 +1,82 @@
-<main>
-  <header>
-    <p class="eyebrow">BIG DATA · PROYECTO DE AULA</p>
-    <h1>Observatorio de actividad sísmica</h1>
-    <p>Mapa base, fronteras y eventos en capas independientes.</p>
-  </header>
+<div class="stage">
+  <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
 
-  <section class="info" aria-live="polite">
-    <strong>{{ mode() }}</strong>
-    <p>{{ status() }}</p>
-    <p>{{ countriesStatus() }} · {{ count() }} eventos dibujados · {{ omitted() }} omitidos por coordenadas inválidas</p>
+  <header class="panel tl">
+    <p class="eyebrow">OBSERVATORIO SÍSMICO · {{ mode() }}</p>
+    <h1>Actividad en vivo</h1>
+    <p class="status">{{ status() }} · {{ count() }} pts · omit. {{ omitted() }}</p>
     @if (truncated()) {
-      <p class="warn">Respuesta truncada: el mapa no usa esta muestra para estadísticas globales.</p>
+      <p class="warn">Respuesta truncada</p>
     }
     @if (staleWarning()) {
       <p class="warn">{{ staleWarning() }}</p>
     }
-    <small>
-      Última lectura UTC: {{ lastRead() }}<br>
-      Generación de la respuesta UTC: {{ generated() }}<br>
-      Última ingesta UTC: {{ lastIngestion() }}
-    </small>
-  </section>
+    <p class="meta">
+      Lectura {{ lastRead() }}<br />
+      Gen. {{ generated() }}<br />
+      Ingesta {{ lastIngestion() }}
+    </p>
+  </header>
 
-  <section class="filters" aria-label="Filtros del mapa">
+  <section class="panel tr" aria-label="Filtros">
+    <h2>Filtros</h2>
     <label>Inicio <input type="datetime-local" [value]="startLocal()" (change)="onStart($event)" /></label>
     <label>Fin <input type="datetime-local" [value]="endLocal()" (change)="onEnd($event)" /></label>
-    <label>Mag. mínima <input type="number" step="0.1" [value]="minMag() ?? ''" (change)="onMinMag($event)" placeholder="cualquiera" /></label>
-    <label>País (ADM0_A3) <input type="text" [value]="countryId()" (change)="onCountry($event)" placeholder="ESP" maxlength="12" /></label>
+    <label>Mag mín <input type="number" step="0.1" [value]="minMag() ?? ''" (change)="onMinMag($event)" placeholder="—" /></label>
+    <label>País <input type="text" [value]="countryId()" (change)="onCountry($event)" placeholder="ESP" maxlength="12" /></label>
     <button type="button" (click)="applyFilters()">Aplicar</button>
   </section>
 
-  <div class="map" leaflet [leafletOptions]="options" (leafletMapReady)="onMapReady($event)" aria-label="Mapa interactivo de terremotos"></div>
+  <section class="panel bl" aria-label="Estadísticas">
+    <h2>Stats</h2>
+    <p class="summary">{{ statsSummary() }}</p>
+    @for (aviso of statsAvisos(); track aviso) {
+      <p class="warn">{{ aviso }}</p>
+    }
+    <div class="mini-grid">
+      <div>
+        <h3>Mag</h3>
+        <ul class="bars">
+          @for (row of statsMag(); track row.banda) {
+            <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsMagMax())"></i><b>{{ row.count }}</b></li>
+          }
+        </ul>
+      </div>
+      <div>
+        <h3>Prof. km</h3>
+        <ul class="bars">
+          @for (row of statsDepth(); track row.banda) {
+            <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsDepthMax())"></i><b>{{ row.count }}</b></li>
+          }
+        </ul>
+      </div>
+      <div>
+        <h3>País</h3>
+        <ul class="plain">
+          @for (row of statsCountries(); track row.country_id) {
+            <li>{{ row.country_name }} <b>{{ row.count }}</b></li>
+          }
+        </ul>
+      </div>
+    </div>
+    <p class="legend">◉ &lt;70 km · ◉ 70–300 · ◉ ≥300 · gris ND</p>
+  </section>
 
-  <section class="events-table" aria-label="Tabla de eventos">
-    <h2>Eventos (hasta 100)</h2>
+  <section class="panel br" aria-label="Tabla de eventos">
+    <h2>Eventos</h2>
     <table>
       <thead>
-        <tr><th scope="col">ID</th><th scope="col">Lugar</th><th scope="col">Mag</th><th scope="col">Fecha UTC</th><th scope="col">País</th></tr>
+        <tr><th>Mag</th><th>Lugar</th><th>País</th></tr>
       </thead>
       <tbody>
         @for (row of eventRows(); track row.id) {
           <tr>
-            <td>{{ row.id }}</td>
-            <td>{{ row.place }}</td>
             <td>{{ row.mag ?? 'ND' }}</td>
-            <td>{{ row.time }}</td>
+            <td [title]="row.time + ' · ' + row.id">{{ row.place }}</td>
             <td>{{ row.country }}</td>
           </tr>
         }
       </tbody>
     </table>
   </section>
-
-  <section class="stats" aria-label="Estadísticas">
-    <h2>Estadísticas</h2>
-    <p>{{ statsSummary() }}</p>
-    @for (aviso of statsAvisos(); track aviso) {
-      <p class="warn">{{ aviso }}</p>
-    }
-    <div class="stats-grid">
-      <div>
-        <h3>Por hora UTC (últimas del periodo)</h3>
-        <ul class="bars">
-          @for (row of statsHour(); track row.hora) {
-            <li><span>{{ row.hora.slice(11, 16) }}</span><span class="bar" [style.width.%]="barWidth(row.count, statsHourMax())"></span><span>{{ row.count }}</span></li>
-          }
-        </ul>
-      </div>
-      <div>
-        <h3>Por país</h3>
-        <table>
-          <thead><tr><th>País</th><th>N</th></tr></thead>
-          <tbody>
-            @for (row of statsCountries(); track row.country_id) {
-              <tr><td>{{ row.country_name }}</td><td>{{ row.count }}</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <h3>Magnitud</h3>
-        <ul class="bars">
-          @for (row of statsMag(); track row.banda) {
-            <li><span>{{ row.banda }}</span><span class="bar" [style.width.%]="barWidth(row.count, statsMagMax())"></span><span>{{ row.count }}</span></li>
-          }
-        </ul>
-      </div>
-      <div>
-        <h3>Profundidad</h3>
-        <ul class="bars">
-          @for (row of statsDepth(); track row.banda) {
-            <li><span>{{ row.banda }}</span><span class="bar" [style.width.%]="barWidth(row.count, statsDepthMax())"></span><span>{{ row.count }}</span></li>
-          }
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <footer>
-    <strong>Profundidad</strong>
-    <span>🟡 Menos de 70 km</span>
-    <span>🟠 70–299,99 km</span>
-    <span>🟣 300 km o más</span>
-    <span>⚪ No disponible</span>
-    <p>Tamaño: escala visual creciente con la magnitud; no representa energía ni área afectada. Sin magnitud: radio mínimo. El mapa base puede desactivarse en el selector de capas.</p>
-  </footer>
-</main>
+</div>

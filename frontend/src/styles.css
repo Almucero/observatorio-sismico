@@ -1,1 +1,20 @@
-body { margin: 0; background: #eef3f6; color: #132b40; font-family: system-ui, sans-serif; } * { box-sizing: border-box; } .leaflet-popup-content { white-space: pre-line; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #020617;
+  color: #e2e8f0;
+}
+
+* { box-sizing: border-box; }
+
+/* Tooltips del globo */
+.scene-tooltip {
+  color: #e2e8f0 !important;
+  background: rgba(8, 20, 40, 0.92) !important;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: 8px;
+  padding: 8px 10px !important;
+  font-size: 12px;
+  line-height: 1.35;
+}
