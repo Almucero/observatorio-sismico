@@ -20,7 +20,13 @@ type Events = FeatureCollection<Point, Properties> & {
     total?: number;
   };
 };
-type Config = { mode: 'demo' | 'api'; apiUrl: string; refreshMs: number; skipNgrokWarning: boolean };
+type Config = {
+  mode: 'demo' | 'api';
+  apiUrl: string;
+  refreshMs: number;
+  skipNgrokWarning: boolean;
+  dataMode?: 'live' | 'replay';
+};
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
 
@@ -80,7 +86,14 @@ export class AppComponent implements OnDestroy {
       const config = await this.readJson<Config>('config.json');
       if (!['demo', 'api'].includes(config.mode)) throw new Error('Modo inválido');
       this.config = config;
-      this.mode.set(config.mode === 'demo' ? 'DEMOSTRACIÓN · datos ficticios' : 'API · datos del backend');
+      const replay = config.dataMode === 'replay';
+      this.mode.set(
+        config.mode === 'demo'
+          ? 'DEMOSTRACIÓN · datos ficticios'
+          : replay
+            ? 'REPRODUCCIÓN · datos aislados de live'
+            : 'API · datos del backend'
+      );
       await this.refresh();
     } catch { this.status.set('Error: revisa public/config.json'); }
   }
@@ -108,6 +121,7 @@ export class AppComponent implements OnDestroy {
     if (this.endLocal()) params.set('end', new Date(this.endLocal()).toISOString());
     if (this.minMag() !== null && Number.isFinite(this.minMag()!)) params.set('min_mag', String(this.minMag()));
     if (this.countryId()) params.set('country_id', this.countryId());
+    if (this.config?.dataMode === 'replay') params.set('mode', 'replay');
     const qs = params.toString();
     return qs ? `?${qs}` : '';
   }

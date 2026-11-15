@@ -58,9 +58,17 @@ Para ver datos reales del backend, en `frontend/public/config.json`:
 ## Histórico (FDSN 2025 M≥4)
 
 ```bash
-docker compose run --rm producer python -m producer.history --year 2025 --min-mag 4
+docker compose run --rm --no-deps producer python -m producer.history --year 2025 --min-mag 4
 ```
+
+## Replay
+
+```bash
+docker compose run --rm --no-deps producer python -m producer.replay --limit 50 --speed 60
+```
+
+En el panel, `frontend/public/config.json` → `"dataMode": "replay"` y consulta API con `mode=replay` (ajusta `start`/`end` a la ventana de los eventos reproducidos).
 
 ## Estado
 
-Pipeline live operativo (cinco servicios). API: `/api/salud`, `/api/eventos`, `/api/estadisticas`. Panel con filtros y estadísticas. Pendiente: carga histórica completa, replay, memoria/rúbrica ampliada, Netlify/ngrok.
+Pipeline live + histórico + replay operativos. Pendiente de entrega: Netlify/ngrok (US7) y checklist final de entregables.

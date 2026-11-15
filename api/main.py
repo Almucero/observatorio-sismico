@@ -75,21 +75,27 @@ def salud():
         raise HTTPException(status_code=503, detail=f"base de datos no disponible: {exc}") from exc
 
 
+def _actual_table(mode: str) -> str:
+    return "replay.evento_actual" if mode == "replay" else "evento_actual"
+
+
 @app.get("/api/eventos")
 def eventos(
     start: str | None = None,
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
+    mode: str = Query(default="live", pattern="^(live|replay)$"),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
         where, params = _event_filters(start_dt, end_dt, min_mag, country_id)
+        table = _actual_table(mode)
         sql = f"""
             SELECT e.event_id, e.mag, e.mag_type, e.place, e.depth_km,
                    e.longitude, e.latitude, e.event_time, e.updated,
                    e.country_id, p.name_es
-            FROM evento_actual e
+            FROM {table} e
             LEFT JOIN pais p ON p.country_id = e.country_id
             WHERE {where}
             ORDER BY e.event_time DESC
@@ -143,7 +149,7 @@ def eventos(
         "metadata": {
             "generated": int(datetime.now(timezone.utc).timestamp() * 1000),
             "last_ingestion": _last_ingestion_ms(),
-            "mode": "live",
+            "mode": mode,
             "count": len(features),
             "total": total,
             "truncated": truncated,
@@ -159,21 +165,23 @@ def estadisticas(
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
+    mode: str = Query(default="live", pattern="^(live|replay)$"),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
         where, params = _event_filters(start_dt, end_dt, min_mag, country_id)
+        table = _actual_table(mode)
 
         with connect() as conn:
             total = conn.execute(
-                f"SELECT COUNT(*) FROM evento_actual e WHERE {where}", params
+                f"SELECT COUNT(*) FROM {table} e WHERE {where}", params
             ).fetchone()[0]
             sin_mag = conn.execute(
-                f"SELECT COUNT(*) FROM evento_actual e WHERE {where} AND mag IS NULL",
+                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND mag IS NULL",
                 params,
             ).fetchone()[0]
             sin_pais = conn.execute(
-                f"SELECT COUNT(*) FROM evento_actual e WHERE {where} AND country_id IS NULL",
+                f"SELECT COUNT(*) FROM {table} e WHERE {where} AND country_id IS NULL",
                 params,
             ).fetchone()[0]
 
@@ -181,7 +189,7 @@ def estadisticas(
                 f"""
                 SELECT date_trunc('hour', event_time AT TIME ZONE 'UTC') AS hora,
                        COUNT(*) AS n
-                FROM evento_actual e
+                FROM {table} e
                 WHERE {where}
                 GROUP BY 1
                 ORDER BY 1
@@ -194,7 +202,7 @@ def estadisticas(
                 SELECT COALESCE(e.country_id, 'SIN_PAIS') AS country_id,
                        COALESCE(p.name_es, 'Sin país asignado') AS country_name,
                        COUNT(*) AS n
-                FROM evento_actual e
+                FROM {table} e
                 LEFT JOIN pais p ON p.country_id = e.country_id
                 WHERE {where}
                 GROUP BY 1, 2
@@ -216,7 +224,7 @@ def estadisticas(
                     ELSE '>=6'
                   END AS banda,
                   COUNT(*) AS n
-                FROM evento_actual e
+                FROM {table} e
                 WHERE {where}
                 GROUP BY 1
                 ORDER BY MIN(COALESCE(mag, -1))
@@ -234,7 +242,7 @@ def estadisticas(
                     ELSE '>=300'
                   END AS banda,
                   COUNT(*) AS n
-                FROM evento_actual e
+                FROM {table} e
                 WHERE {where}
                 GROUP BY 1
                 ORDER BY MIN(COALESCE(depth_km, -1))
@@ -249,13 +257,13 @@ def estadisticas(
                 prev_start, prev_end, min_mag, country_id
             )
             prev_total = conn.execute(
-                f"SELECT COUNT(*) FROM evento_actual e WHERE {prev_where}",
+                f"SELECT COUNT(*) FROM {table} e WHERE {prev_where}",
                 prev_params,
             ).fetchone()[0]
 
             last_1h = conn.execute(
                 f"""
-                SELECT COUNT(*) FROM evento_actual e
+                SELECT COUNT(*) FROM {table} e
                 WHERE {where} AND event_time >= %s
                 """,
                 params + [end_dt - timedelta(hours=1)],
@@ -311,6 +319,7 @@ def estadisticas(
             "magnitud": sin_mag,
             "pais": sin_pais,
         },
+        "mode": mode,
         "generated": int(datetime.now(timezone.utc).timestamp() * 1000),
         "last_ingestion": _last_ingestion_ms(),
     }

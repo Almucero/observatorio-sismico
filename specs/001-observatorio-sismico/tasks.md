@@ -51,17 +51,17 @@
 
 ## Phase 6: US4 — Histórico y estadísticas (P2)
 
-- [ ] T040 [US4] Script/carga histórica 2025 mundial M≥4 por meses sin truncar 20k (FR-006)
+- [x] T040 [US4] Script/carga histórica 2025 mundial M≥4 por meses sin truncar 20k (FR-006)
 - [x] T041 [US4] `GET /api/estadisticas` ventanas 1h, país, distribuciones, comparación (FR-007, FR-014)
 - [x] T042 [US4] Frontend: filtros start/end/min_mag/country_id coherentes (FR-008)
 - [x] T043 [US4] Frontend: gráficos/distribuciones + tabla (FR-008)
-- [ ] T044 [US4] Tres conclusiones + capturas en memoria (SC-005)
+- [x] T044 [US4] Tres conclusiones + capturas en memoria (SC-005)
 
 ## Phase 7: US5 — Replay (P2)
 
-- [ ] T050 [US5] Productor replay acelerado → topic `terremotos.replay`, mode=replay (FR-009)
-- [ ] T051 [US5] Consumidor/API modo reproducción aislado + etiqueta UI (FR-009, T-G9)
-- [ ] T052 [US5] Evidencia replay + casos duplicado/revisión controlados (SC-001)
+- [x] T050 [US5] Productor replay acelerado → topic `terremotos.replay`, mode=replay (FR-009)
+- [x] T051 [US5] Consumidor/API modo reproducción aislado + etiqueta UI (FR-009, T-G9)
+- [x] T052 [US5] Evidencia replay + casos duplicado/revisión controlados (SC-001)
 
 ## Phase 8: US6 — Panel estado (P2)
 
@@ -75,9 +75,9 @@
 
 ## Phase 10: Polish / Rúbrica
 
-- [ ] T080 README reproducible completo (FR-010, SC-003)
-- [ ] T081 Memoria: diccionario, procedencia, modelo, complejidad 3 tamaños, costes (SC-002, SC-005)
-- [ ] T082 Evidencia restart consumidor (SC-001)
+- [x] T080 README reproducible completo (FR-010, SC-003)
+- [x] T081 Memoria: diccionario, procedencia, modelo, complejidad 3 tamaños, costes (SC-002, SC-005)
+- [x] T082 Evidencia restart consumidor (SC-001)
 - [ ] T083 Lista final GUIA-ENTREGABLES
 
 ## Dependencies

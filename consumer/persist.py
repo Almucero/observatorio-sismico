@@ -5,11 +5,12 @@ from common.db import connect
 from consumer.geo import assign_country
 
 
-def quarantine(event_id: str | None, motivo: str, payload: dict) -> None:
+def quarantine(event_id: str | None, motivo: str, payload: dict, schema: str = "public") -> None:
+    table = "cuarentena" if schema == "public" else f"{schema}.cuarentena"
     with connect() as conn:
         conn.execute(
-            """
-            INSERT INTO cuarentena (event_id, motivo, ingested_at, payload_json)
+            f"""
+            INSERT INTO {table} (event_id, motivo, ingested_at, payload_json)
             VALUES (%s, %s, NOW(), %s::jsonb)
             """,
             (event_id, motivo, json.dumps(payload)),
@@ -40,7 +41,7 @@ def upsert_country(info: dict) -> None:
         conn.commit()
 
 
-def persist_event(record: dict, message: dict) -> None:
+def persist_event(record: dict, message: dict, schema: str = "public") -> None:
     country = assign_country(record["longitude"], record["latitude"])
     country_id = None
     if country:
@@ -48,14 +49,20 @@ def persist_event(record: dict, message: dict) -> None:
         country_id = country["country_id"]
 
     ingested_at = datetime.now(timezone.utc)
+    version_table = "evento_version" if schema == "public" else f"{schema}.evento_version"
+    actual_table = "evento_actual" if schema == "public" else f"{schema}.evento_actual"
+    replay_cols = ", replayed_at" if schema != "public" else ""
+    replay_vals = ", NOW()" if schema != "public" else ""
+
     with connect() as conn:
         with conn.transaction():
             conn.execute(
-                """
-                INSERT INTO evento_version (
+                f"""
+                INSERT INTO {version_table} (
                     event_id, updated, mag, mag_type, place, depth_km,
                     longitude, latitude, event_time, country_id, ingested_at, payload_json
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                    {replay_cols}
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb{replay_vals})
                 ON CONFLICT (event_id, updated) DO NOTHING
                 """,
                 (
@@ -73,13 +80,13 @@ def persist_event(record: dict, message: dict) -> None:
                     json.dumps(record["payload"]),
                 ),
             )
-            # Solo actualiza el estado actual si la versión es más reciente
             conn.execute(
-                """
-                INSERT INTO evento_actual (
+                f"""
+                INSERT INTO {actual_table} (
                     event_id, mag, mag_type, place, depth_km, longitude, latitude,
                     event_time, updated, country_id, ingested_at, source
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    {replay_cols}
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s{replay_vals})
                 ON CONFLICT (event_id) DO UPDATE SET
                     mag = EXCLUDED.mag,
                     mag_type = EXCLUDED.mag_type,
@@ -92,7 +99,8 @@ def persist_event(record: dict, message: dict) -> None:
                     country_id = EXCLUDED.country_id,
                     ingested_at = EXCLUDED.ingested_at,
                     source = EXCLUDED.source
-                WHERE evento_actual.updated < EXCLUDED.updated
+                    {', replayed_at = NOW()' if schema != 'public' else ''}
+                WHERE {actual_table}.updated < EXCLUDED.updated
                 """,
                 (
                     record["event_id"],
