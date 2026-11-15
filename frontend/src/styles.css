@@ -20,9 +20,54 @@ html, body {
   font: 12px/1.45 "Segoe UI", system-ui, sans-serif !important;
 }
 
-.float-tooltip-kap small,
-.scene-tooltip small {
-  color: #8fa6c4;
+.quake-card { min-width: 196px; }
+
+.quake-card strong {
+  display: block;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+  background: linear-gradient(90deg, rgba(160, 205, 255, 0.3), transparent) bottom / 100% 1px no-repeat;
+  color: #fff;
+  font-size: 12.5px;
+}
+
+.quake-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 16px;
+  margin: 0;
+}
+
+.quake-card dt { color: #8fa6c4; }
+
+.quake-card dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.quake-card .mag { color: #fbbf24; }
+.quake-card .depth { color: #c7d2fe; }
+.quake-card .time { color: #7dd3fc; }
+.quake-card .country { color: #86efac; }
+
+.quake-card .depth::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--depth);
+  box-shadow: 0 0 6px var(--depth);
+}
+
+.quake-card small {
+  display: block;
+  margin-top: 7px;
+  color: #64799a;
+  font: 10px Consolas, ui-monospace, monospace;
+  letter-spacing: 0.04em;
 }
 
 /* Rótulos de país: el globo los coloca; aquí solo aspecto y visibilidad */

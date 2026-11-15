@@ -1,4 +1,4 @@
-<div class="stage">
+<div class="stage" (mouseover)="showTip($event)" (mouseleave)="tip.set(null)">
   <div class="stars" aria-hidden="true">
     @for (s of starField; track $index) {
       <span
@@ -23,7 +23,6 @@
       (click)="toggle(id)"
       [attr.aria-expanded]="!isCollapsed(id)"
       [attr.aria-label]="isCollapsed(id) ? 'Ampliar panel' : 'Minimizar panel'"
-      [title]="isCollapsed(id) ? 'Ampliar' : 'Minimizar'"
     >
       <svg viewBox="0 0 12 12" aria-hidden="true">
         <path d="M2.5 6h7" />
@@ -45,39 +44,58 @@
         <div class="fold-inner">
           <div class="body">
             <div class="tiles">
-              <div class="tile">
+              <div class="tile" data-tip="Resultado de la última consulta de esta página a la API del observatorio.">
                 <b class="state" [attr.data-level]="statusLevel()"><i></i>{{ status() }}</b>
                 <span>Conexión API</span>
               </div>
-              <div class="tile" title="Terremotos dibujados en el mapa">
+              <div class="tile" data-tip="Terremotos del periodo consultado que están dibujados en el mapa.">
                 <b>{{ count() }}</b>
                 <span>En el mapa</span>
               </div>
-              <div class="tile" title="Eventos recibidos con coordenadas no válidas, que no se dibujan">
+              <div
+                class="tile"
+                data-tip="Terremotos recibidos con coordenadas no válidas. No se pueden situar y no se dibujan."
+              >
                 <b>{{ omitted() }}</b>
                 <span>Descartados</span>
               </div>
             </div>
             <dl class="rows">
-              <div [title]="'Respuesta generada por la API: ' + generated()">
+              <div
+                [attr.data-tip]="
+                  'Última vez que esta página recibió datos de la API. Se vuelve a consultar sola cada ' +
+                  refreshSeconds() +
+                  ' segundos. La API generó esa respuesta: ' +
+                  generated() +
+                  '.'
+                "
+              >
                 <dt>Último acceso a la API</dt>
                 <dd>{{ lastRead() }}</dd>
               </div>
-              <div>
+              <div
+                data-tip="Última vez que el sistema descargó terremotos de USGS, el servicio geológico de EE. UU. del que salen los datos. Si se retrasa, lo que ves puede estar desactualizado."
+              >
                 <dt>Última ingesta de USGS</dt>
                 <dd>{{ lastIngestion() }}</dd>
               </div>
-              <div>
+              <div
+                data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria."
+              >
                 <dt>Periodo consultado</dt>
                 <dd>{{ period() }}</dd>
               </div>
             </dl>
-            @for (warning of warnings(); track warning) {
-              <p class="warn">{{ warning }}</p>
-            }
           </div>
         </div>
       </div>
+      @if (warnings().length) {
+        <div class="alerts" role="status">
+          @for (warning of warnings(); track warning) {
+            <p>{{ warning }}</p>
+          }
+        </div>
+      }
     </section>
 
     <section class="panel" [class.collapsed]="collapsed().filtros" aria-label="Filtros">
@@ -150,67 +168,88 @@
         <div class="fold-inner">
           <div class="body">
             <div class="tiles">
-              <div class="tile">
+              <div class="tile" data-tip="Terremotos del periodo consultado que cumplen los filtros.">
                 <b>{{ stats().total }}</b>
                 <span>Terremotos</span>
               </div>
-              <div class="tile" title="Terremotos en la última hora del periodo">
+              <div class="tile" data-tip="Terremotos ocurridos durante la última hora del periodo consultado.">
                 <b>{{ stats().lastHour }}</b>
                 <span>Última hora</span>
               </div>
-              <div class="tile" title="Media de terremotos por día en el periodo">
+              <div class="tile" [attr.data-tip]="stats().dailyTip">
                 <b>{{ stats().dailyAvg }}</b>
                 <span>Media diaria</span>
               </div>
-              <div class="tile" title="Media diaria de 2025 con los mismos filtros">
+              <div class="tile" [class.limited]="!stats().comparable" [attr.data-tip]="stats().refTip">
                 <b>{{ stats().ref2025 }}</b>
-                <span>Media 2025</span>
+                <span>{{ stats().comparable ? 'Media 2025' : '2025 · M≥4' }}</span>
               </div>
             </div>
+
             <div class="charts">
               <div>
-                <h3>Magnitud</h3>
-                <ul class="bars">
-                  @for (row of stats().mag; track row.banda) {
-                    <li>
-                      <span>{{ bandLabel(row.banda) }}</span>
-                      <i [style.width.%]="barWidth(row.count, stats().mag)"></i>
-                      <b>{{ row.count }}</b>
+                <h3>
+                  Por magnitud
+                  <small
+                    class="sizes"
+                    data-tip="En el mapa, cuanto mayor es la magnitud, más grande es el círculo. Los terremotos sin magnitud se dibujan con un tamaño fijo."
+                  >
+                    <i></i><i></i><i></i>tamaño
+                  </small>
+                </h3>
+                <ul class="histogram">
+                  @for (bar of stats().mag; track bar.label) {
+                    <li [class.zero]="!bar.share" [style.--share]="bar.share" [attr.data-tip]="bar.tip">
+                      <b>{{ bar.count }}</b>
+                      <i></i>
+                      <span>{{ bar.label }}</span>
                     </li>
+                  } @empty {
+                    <li class="none">Sin datos</li>
                   }
                 </ul>
               </div>
               <div>
-                <h3>Profundidad (km)</h3>
-                <ul class="bars">
-                  @for (row of stats().depth; track row.banda) {
-                    <li>
-                      <span>{{ bandLabel(row.banda) }}</span>
-                      <i [style.width.%]="barWidth(row.count, stats().depth)"></i>
-                      <b>{{ row.count }}</b>
+                <h3>Por país</h3>
+                <ol class="ranking">
+                  @for (bar of stats().countries; track bar.label) {
+                    <li [style.--share]="bar.share" [attr.data-tip]="bar.tip">
+                      <span>{{ bar.label }}</span>
+                      <b>{{ bar.count }}</b>
                     </li>
+                  } @empty {
+                    <li class="none">Sin datos</li>
                   }
-                </ul>
-              </div>
-              <div>
-                <h3>Países</h3>
-                <ul class="ranking">
-                  @for (row of stats().countries; track row.country_id) {
-                    <li>
-                      <span>{{ row.country_name }}</span>
-                      <b>{{ row.count }}</b>
-                    </li>
-                  }
-                </ul>
+                </ol>
               </div>
             </div>
-            <ul class="legend" aria-label="Leyenda del mapa">
-              <li><i [style.background]="depthColors.shallow"></i>&lt; 70 km</li>
-              <li><i [style.background]="depthColors.mid"></i>70–300 km</li>
-              <li><i [style.background]="depthColors.deep"></i>≥ 300 km</li>
-              <li><i [style.background]="depthColors.unknown"></i>Sin dato</li>
-              <li class="sizes"><i></i><i></i><i></i>Tamaño = magnitud</li>
-            </ul>
+
+            <div>
+              <h3>
+                Por profundidad
+                <small
+                  data-tip="La profundidad es la distancia bajo la superficie a la que se originó el terremoto (su foco). Cada círculo del mapa toma el color de su tramo."
+                >
+                  color del círculo
+                </small>
+              </h3>
+              <div class="stack" aria-hidden="true">
+                @for (bar of stats().depth; track bar.label) {
+                  @if (bar.share) {
+                    <i [style.flex-grow]="bar.share" [style.background]="bar.color"></i>
+                  }
+                }
+              </div>
+              <ul class="legend" aria-label="Leyenda del mapa: color según la profundidad">
+                @for (bar of stats().depth; track bar.label) {
+                  <li [attr.data-tip]="bar.tip">
+                    <i [style.background]="bar.color"></i>
+                    <span>{{ bar.label }}</span>
+                    <b>{{ bar.count }}</b>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -220,43 +259,66 @@
       <header class="bar">
         <div class="heading inline">
           <h2>Eventos</h2>
-          <span class="tag">{{ eventRows().length }}</span>
+          <span
+            class="tag"
+            [attr.data-tip]="
+              'Terremotos del periodo. La tabla lista los ' + eventRows().length + ' más recientes.'
+            "
+          >
+            {{ count() }}
+          </span>
         </div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'eventos' }" />
       </header>
       <div class="fold-wrap">
         <div class="fold-inner">
           <div class="body">
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mag.</th>
-                    <th>Lugar</th>
-                    <th>Prof.</th>
+            <table>
+              <thead>
+                <tr>
+                  <th data-tip="Magnitud del terremoto. ND significa que USGS no la ha publicado.">Mag.</th>
+                  <th data-tip="Lugar según USGS; debajo, el país asignado y la hora en tu zona horaria.">
+                    Lugar
+                  </th>
+                  <th
+                    data-tip="Profundidad del foco bajo la superficie. El punto lleva el mismo color que el círculo del mapa."
+                  >
+                    Prof.
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of eventRows(); track row.id) {
+                  <tr [title]="'ID ' + row.id">
+                    <td class="mag">{{ row.mag }}</td>
+                    <td class="where">
+                      <span>{{ row.place }}</span>
+                      <small>{{ row.country }} · {{ row.time }}</small>
+                    </td>
+                    <td class="depth"><i [style.background]="row.color"></i>{{ row.depth }}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  @for (row of eventRows(); track row.id) {
-                    <tr [title]="row.id">
-                      <td class="mag">{{ row.mag }}</td>
-                      <td class="where">
-                        <span>{{ row.place }}</span>
-                        <small>{{ row.country }} · {{ row.time }}</small>
-                      </td>
-                      <td class="depth"><i [style.background]="row.color"></i>{{ row.depth }}</td>
-                    </tr>
-                  } @empty {
-                    <tr>
-                      <td colspan="3" class="empty">Sin terremotos en este periodo</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+                } @empty {
+                  <tr>
+                    <td class="empty">Sin terremotos en este periodo</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
     </section>
   </div>
+
+  @if (tip(); as shown) {
+    <div
+      class="tip"
+      role="tooltip"
+      [class.flip]="shown.flip"
+      [style.left.px]="shown.x"
+      [style.top.px]="shown.y"
+    >
+      {{ shown.text }}
+    </div>
+  }
 </div>

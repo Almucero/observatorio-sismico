@@ -44,7 +44,8 @@ type Events = FeatureCollection<Point, Properties> & {
   };
 };
 type StatsResponse = {
-  periodo?: { start?: string; end?: string };
+  periodo?: { start?: string; end?: string; dias?: number };
+  filtros?: { min_mag?: number | null };
   resumen?: { total?: number; ultima_hora?: number; media_por_dia?: number };
   por_pais?: CountryRow[];
   distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
@@ -60,16 +61,23 @@ type Config = {
 };
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
+type Band = { band: string; label: string; about: string; color?: string };
+type BarInput = { label: string; about: string; count: number; color?: string };
+type Bar = { label: string; count: string; share: number; tip: string; color: string };
 type StatsView = {
   total: string;
   lastHour: string;
   dailyAvg: string;
   ref2025: string;
+  dailyTip: string;
+  refTip: string;
+  comparable: boolean;
   avisos: string[];
-  countries: CountryRow[];
-  mag: BandRow[];
-  depth: BandRow[];
+  countries: Bar[];
+  mag: Bar[];
+  depth: Bar[];
 };
+type Tip = { text: string; x: number; y: number; flip: boolean };
 type EventRow = {
   id: string;
   place: string;
@@ -110,17 +118,92 @@ const WAVE_EDGE = 0.87;
 const LABEL_ALTITUDE = 0.012;
 // Ancho medio por letra del rótulo (10 px en mayúsculas con espaciado)
 const LABEL_CHAR_PX = 8;
+const NO_DATA = 'ND';
+const ROTATE_RESUME_MS = 5500;
+// El histórico de 2025 cargado solo contiene terremotos de magnitud 4 o mayor
+const HISTORY_MIN_MAG = 4;
 const DEPTH_COLORS = { shallow: '#38bdf8', mid: '#6366f1', deep: '#c084fc', unknown: '#94a3b8' };
+const MAG_BANDS: Band[] = [
+  { band: '<2', label: '< 2', about: 'Magnitud menor que 2' },
+  { band: '2-3', label: '2–3', about: 'Magnitud de 2 a menos de 3' },
+  { band: '3-4', label: '3–4', about: 'Magnitud de 3 a menos de 4' },
+  { band: '4-5', label: '4–5', about: 'Magnitud de 4 a menos de 5' },
+  { band: '5-6', label: '5–6', about: 'Magnitud de 5 a menos de 6' },
+  { band: '>=6', label: '≥ 6', about: 'Magnitud 6 o mayor' },
+  { band: NO_DATA, label: 'S/D', about: 'Sin dato de magnitud' },
+];
+const DEPTH_BANDS: Band[] = [
+  {
+    band: '0-70',
+    label: '< 70 km',
+    about: 'Foco superficial, a menos de 70 km bajo la superficie',
+    color: DEPTH_COLORS.shallow,
+  },
+  {
+    band: '70-300',
+    label: '70–300 km',
+    about: 'Foco intermedio, entre 70 y 300 km bajo la superficie',
+    color: DEPTH_COLORS.mid,
+  },
+  {
+    band: '>=300',
+    label: '≥ 300 km',
+    about: 'Foco profundo, a 300 km o más bajo la superficie',
+    color: DEPTH_COLORS.deep,
+  },
+  {
+    band: NO_DATA,
+    label: 'Sin dato',
+    about: 'Profundidad no publicada por USGS',
+    color: DEPTH_COLORS.unknown,
+  },
+];
+const REF_TIP =
+  'Media de terremotos por día en 2025 con los mismos filtros. Sirve de referencia para saber si el periodo es más o menos activo de lo habitual.';
+const REF_LIMITED =
+  'El histórico de 2025 solo contiene terremotos de magnitud 4 o mayor, así que su media no es comparable con la del periodo. Para comparar muestras equivalentes, filtra por magnitud mínima 4.';
 const EMPTY_STATS: StatsView = {
   total: '—',
   lastHour: '—',
   dailyAvg: '—',
   ref2025: '—',
+  dailyTip: 'Media de terremotos por día en el periodo.',
+  refTip: REF_TIP,
+  comparable: true,
   avisos: [],
   countries: [],
   mag: [],
-  depth: [],
+  depth: toBars(DEPTH_BANDS.map((band) => ({ ...band, count: 0 })), null),
 };
+
+function quakes(count: number): string {
+  return count === 1 ? '1 terremoto' : `${count} terremotos`;
+}
+
+// Cada barra pesa según el mayor recuento; sin total (estadísticas no disponibles)
+// queda solo la descripción, que sirve de leyenda
+function toBars(items: BarInput[], total: number | null): Bar[] {
+  const max = Math.max(1, ...items.map((item) => item.count));
+  return items.map(({ label, about, count, color }) => {
+    const percent = total ? Math.round((count / total) * 100) : 0;
+    return {
+      label,
+      color: color ?? '',
+      count: total === null ? '—' : String(count),
+      share: total === null ? 0 : count / max,
+      tip: total === null ? `${about}.` : `${about}: ${quakes(count)} (${percent} % del periodo).`,
+    };
+  });
+}
+
+// Bandas fijas: las que la API no devuelve cuentan 0 y siguen a la vista
+function bandBars(bands: Band[], rows: BandRow[] | undefined, total: number): Bar[] {
+  const counts = new Map((rows ?? []).map((row) => [row.banda, row.count]));
+  return toBars(
+    bands.map((band) => ({ ...band, count: counts.get(band.band) ?? 0 })),
+    total
+  );
+}
 
 @Component({
   selector: 'app-root',
@@ -132,7 +215,6 @@ const EMPTY_STATS: StatsView = {
 export class AppComponent implements AfterViewInit, OnDestroy {
   @ViewChild('globeHost', { static: true }) globeHost!: ElementRef<HTMLDivElement>;
 
-  readonly depthColors = DEPTH_COLORS;
   readonly starField: Star[] = Array.from({ length: 420 }, () => ({
     x: Math.random() * 100,
     y: Math.random() * 100,
@@ -148,6 +230,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly generated = signal('—');
   readonly lastIngestion = signal('—');
   readonly period = signal('—');
+  readonly refreshSeconds = signal(60);
+  readonly tip = signal<Tip | null>(null);
   readonly staleWarning = signal('');
   readonly count = signal(0);
   readonly total = signal(0);
@@ -196,8 +280,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private globe?: GlobeInstance;
   private glow?: Object3D;
   private timer?: ReturnType<typeof setTimeout>;
-  private resumeRotateTimer?: ReturnType<typeof setTimeout>;
   private frame = 0;
+  private dragging = false;
+  private hovering = false;
+  private pointerOver = false;
+  private rotateAfter = 0;
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
@@ -207,7 +294,18 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private viewportHeight = 1;
   private auraRadius = 0;
   private onResize = () => this.resizeGlobe();
-  private onUserInteract = () => this.pauseAutoRotate();
+  private onPointerDown = () => {
+    this.dragging = true;
+    this.pointerOver = true;
+  };
+  private trackPointer = (event: PointerEvent) => {
+    this.pointerOver = event.type !== 'pointerleave';
+  };
+  private onPointerUp = () => {
+    if (!this.dragging) return;
+    this.dragging = false;
+    this.rotateAfter = performance.now() + ROTATE_RESUME_MS;
+  };
 
   ngAfterViewInit(): void {
     this.zone.runOutsideAngular(() => this.createGlobe());
@@ -250,13 +348,23 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.applyFilters();
   }
 
-  barWidth(value: number, rows: { count: number }[]): number {
-    const max = Math.max(1, ...rows.map((row) => row.count));
-    return Math.max(4, Math.round((value / max) * 100));
-  }
-
-  bandLabel(band: string): string {
-    return band === 'ND' ? 'Sin dato' : band.replace('>=', '≥ ').replace('<', '< ');
+  // Ayuda flotante de los elementos con data-tip: sale al lado del panel, hacia el globo,
+  // para no tapar su contenido
+  showTip(event: Event): void {
+    const target = (event.target as Element).closest<HTMLElement>('[data-tip]');
+    const panel = target?.closest('.panel')?.getBoundingClientRect();
+    if (!target || !panel) {
+      this.tip.set(null);
+      return;
+    }
+    const box = target.getBoundingClientRect();
+    const flip = panel.left + panel.width / 2 > window.innerWidth / 2;
+    this.tip.set({
+      text: target.dataset['tip'] ?? '',
+      x: flip ? panel.left - 10 : panel.right + 10,
+      y: Math.max(60, Math.min(window.innerHeight - 60, box.top + box.height / 2)),
+      flip,
+    });
   }
 
   private createGlobe(): void {
@@ -277,6 +385,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .objectAltitude(0.01)
       .objectThreeObject((d: object) => this.buildQuake(d as GlobePoint))
       .objectLabel('label')
+      .onObjectHover((quake: object | null) => {
+        this.hovering = Boolean(quake);
+      })
       .htmlElementsData([])
       .htmlAltitude(LABEL_ALTITUDE)
       .htmlElement((d: object) => (d as CountryLabel).el)
@@ -289,8 +400,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     controls.dampingFactor = 0.08;
     controls.minDistance = GLOBE_RADIUS * 1.2;
     controls.maxDistance = GLOBE_RADIUS * 6;
-    controls.addEventListener('start', this.onUserInteract);
-    el.addEventListener('wheel', this.onUserInteract, { passive: true });
+    el.addEventListener('pointerdown', this.onPointerDown);
+    el.addEventListener('pointermove', this.trackPointer, { passive: true });
+    el.addEventListener('pointerleave', this.trackPointer);
+    window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerUp);
 
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.resizeGlobe();
@@ -380,7 +494,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const camera = this.globe.camera() as PerspectiveCamera;
     const altitude = camera.position.length() / GLOBE_RADIUS - 1;
     const halfFov = Math.tan((camera.fov * Math.PI) / 360);
-    const time = performance.now() / 1000;
+    const now = performance.now();
+    const time = now / 1000;
+    // El giro solo se detiene al pulsar o arrastrar y con el ratón sobre un terremoto.
+    // El globo recuerda la última posición del ratón, así que fuera del lienzo no cuenta
+    const onQuake = this.hovering && this.pointerOver;
+    this.globe.controls().autoRotate = !this.dragging && !onQuake && now > this.rotateAfter;
     this.animateGlow(time, altitude, halfFov);
     this.animateQuakes(time, altitude, halfFov);
     this.placeLabels(altitude, camera);
@@ -462,16 +581,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private pauseAutoRotate(): void {
-    const controls = this.globe?.controls();
-    if (!controls) return;
-    controls.autoRotate = false;
-    clearTimeout(this.resumeRotateTimer);
-    this.resumeRotateTimer = setTimeout(() => {
-      if (!this.destroyed && this.globe) this.globe.controls().autoRotate = true;
-    }, 5500);
-  }
-
   private resizeGlobe(): void {
     if (!this.globe) return;
     const el = this.globeHost.nativeElement;
@@ -519,6 +628,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       const config = await this.readJson<Config>('config.json');
       if (!['demo', 'api'].includes(config.mode)) throw new Error('Modo inválido');
       this.config = config;
+      this.refreshSeconds.set(Math.round(Math.max(30000, Number(config.refreshMs) || 60000) / 1000));
       const replay = config.dataMode === 'replay';
       this.mode.set(config.mode === 'demo' ? 'DEMO' : replay ? 'REPRODUCCIÓN' : 'LIVE');
       await this.refresh();
@@ -551,13 +661,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return response.json() as Promise<T>;
   }
 
-  private updateStale(lastIngestionMs: number | null | undefined, refreshMs: number): void {
+  private updateStale(lastIngestionMs: number | null | undefined): void {
     if (typeof lastIngestionMs !== 'number' || !Number.isFinite(lastIngestionMs)) {
       this.staleWarning.set('No consta ninguna ingesta de USGS.');
       return;
     }
     const ageMs = Date.now() - lastIngestionMs;
-    const threshold = Math.max(180000, refreshMs * 3);
+    const threshold = Math.max(180000, this.refreshSeconds() * 3000);
     this.staleWarning.set(
       ageMs > threshold
         ? `Datos desactualizados: la última ingesta fue hace ${Math.round(ageMs / 60000)} min.`
@@ -574,6 +684,22 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private escape(text: string): string {
     return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+  }
+
+  private quakeCard(row: EventRow): string {
+    const shown = (value: string) => (value === NO_DATA ? 'Sin dato' : value);
+    return [
+      '<div class="quake-card">',
+      `<strong>${this.escape(row.place)}</strong>`,
+      '<dl>',
+      `<dt>Magnitud</dt><dd class="mag">${shown(row.mag)}</dd>`,
+      `<dt>Profundidad</dt><dd class="depth" style="--depth: ${row.color}">${shown(row.depth)}</dd>`,
+      `<dt>Fecha</dt><dd class="time">${row.time}</dd>`,
+      `<dt>País</dt><dd class="country">${this.escape(row.country)}</dd>`,
+      '</dl>',
+      `<small>ID ${this.escape(row.id)}</small>`,
+      '</div>',
+    ].join('');
   }
 
   // Fase estable por evento para que el pulso no salte en cada refresco
@@ -625,8 +751,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         const row: EventRow = {
           id,
           place: p.place ?? 'Sin descripción',
-          mag: magnitude === null ? 'ND' : magnitude.toFixed(1),
-          depth: depth === null ? 'ND' : `${Math.round(depth)} km`,
+          mag: magnitude === null ? NO_DATA : magnitude.toFixed(1),
+          depth: depth === null ? NO_DATA : `${Math.round(depth)} km`,
           color: this.depthColor(depth),
           time: this.date(p.time),
           country: p.country_name ?? 'Sin país asignado',
@@ -638,12 +764,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           baseSize:
             magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
           color: row.color,
-          label: [
-            `<b>${this.escape(row.place)}</b>`,
-            `Magnitud ${row.mag} · Profundidad ${row.depth}`,
-            `${row.time} · ${this.escape(row.country)}`,
-            `<small>${this.escape(id)}</small>`,
-          ].join('<br>'),
+          label: this.quakeCard(row),
           phase: this.phaseOf(id),
         });
       }
@@ -658,7 +779,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.lastRead.set(this.date(Date.now()));
       this.generated.set(this.date(data.metadata?.generated));
       this.lastIngestion.set(this.date(data.metadata?.last_ingestion));
-      this.updateStale(data.metadata?.last_ingestion ?? null, Number(config.refreshMs) || 60000);
+      this.updateStale(data.metadata?.last_ingestion ?? null);
       this.apiFailed.set(false);
       this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
       if (config.mode === 'api') await this.loadStats(config, headers, qs);
@@ -669,10 +790,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
-        this.timer = setTimeout(
-          () => void this.refresh(),
-          Math.max(30000, Number(config.refreshMs) || 60000)
-        );
+        this.timer = setTimeout(() => void this.refresh(), this.refreshSeconds() * 1000);
       }
     }
   }
@@ -695,17 +813,31 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         headers
       );
       const summary = data.resumen ?? {};
+      const total = summary.total ?? 0;
       const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
+      const comparable = (data.filtros?.min_mag ?? -Infinity) >= HISTORY_MIN_MAG;
+      const avisos = data.avisos ?? [];
+      const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
+        label: row.country_name,
+        about:
+          row.country_id === 'SIN_PAIS'
+            ? 'Sin país asignado (en el mar o fuera de cualquier frontera)'
+            : row.country_name,
+        count: row.count,
+      }));
       this.stats.set({
-        total: String(summary.total ?? 0),
+        total: String(total),
         lastHour: String(summary.ultima_hora ?? 0),
         dailyAvg:
           typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
         ref2025: typeof ref === 'number' ? ref.toFixed(1) : '—',
-        avisos: data.avisos ?? [],
-        countries: (data.por_pais ?? []).slice(0, 5),
-        mag: data.distribuciones?.magnitud ?? [],
-        depth: data.distribuciones?.profundidad_km ?? [],
+        dailyTip: `Terremotos del periodo divididos entre los días naturales (UTC) que abarca: ${data.periodo?.dias ?? 1}.`,
+        refTip: comparable ? REF_TIP : REF_LIMITED,
+        comparable,
+        avisos: comparable ? avisos : [...avisos, REF_LIMITED],
+        countries: toBars(countries, total),
+        mag: bandBars(MAG_BANDS, data.distribuciones?.magnitud, total),
+        depth: bandBars(DEPTH_BANDS, data.distribuciones?.profundidad_km, total),
       });
       const start = Date.parse(data.periodo?.start ?? '');
       const end = Date.parse(data.periodo?.end ?? '');
@@ -723,12 +855,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     clearTimeout(this.timer);
-    clearTimeout(this.resumeRotateTimer);
     cancelAnimationFrame(this.frame);
     this.controller.abort();
     window.removeEventListener('resize', this.onResize);
-    this.globe?.controls().removeEventListener('start', this.onUserInteract);
-    this.globeHost.nativeElement.removeEventListener('wheel', this.onUserInteract);
+    window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerUp);
+    const el = this.globeHost.nativeElement;
+    el.removeEventListener('pointerdown', this.onPointerDown);
+    el.removeEventListener('pointermove', this.trackPointer);
+    el.removeEventListener('pointerleave', this.trackPointer);
     try {
       (this.globe as { _destructor?: () => void } | undefined)?._destructor?.();
     } catch {
