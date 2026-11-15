@@ -1,4 +1,5 @@
 <div class="stage">
+  <div class="stars" aria-hidden="true"></div>
   <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
 
   <header class="panel tl">
@@ -28,11 +29,20 @@
   </section>
 
   <section class="panel bl" aria-label="Estadísticas">
-    <h2>Stats</h2>
+    <div class="panel-head">
+      <h2>Stats</h2>
+      @if (statsAvisos().length) {
+        <span class="hint" tabindex="0" aria-label="Avisos">
+          !
+          <span class="hint-pop">
+            @for (aviso of statsAvisos(); track aviso) {
+              <span>{{ aviso }}</span>
+            }
+          </span>
+        </span>
+      }
+    </div>
     <p class="summary">{{ statsSummary() }}</p>
-    @for (aviso of statsAvisos(); track aviso) {
-      <p class="warn">{{ aviso }}</p>
-    }
     <div class="mini-grid">
       <div>
         <h3>Mag</h3>
@@ -64,19 +74,21 @@
 
   <section class="panel br" aria-label="Tabla de eventos">
     <h2>Eventos</h2>
-    <table>
-      <thead>
-        <tr><th>Mag</th><th>Lugar</th><th>País</th></tr>
-      </thead>
-      <tbody>
-        @for (row of eventRows(); track row.id) {
-          <tr>
-            <td>{{ row.mag ?? 'ND' }}</td>
-            <td [title]="row.time + ' · ' + row.id">{{ row.place }}</td>
-            <td>{{ row.country }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Mag</th><th>Lugar</th><th>País</th></tr>
+        </thead>
+        <tbody>
+          @for (row of eventRows(); track row.id) {
+            <tr>
+              <td>{{ row.mag ?? 'ND' }}</td>
+              <td [title]="row.time + ' · ' + row.id">{{ row.place }}</td>
+              <td>{{ row.country }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   </section>
 </div>

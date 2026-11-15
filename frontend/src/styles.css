@@ -2,7 +2,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #020617;
+  background: #000;
   color: #e2e8f0;
 }
 
@@ -18,12 +18,17 @@ html, body {
   line-height: 1.35;
 }
 
-/* Oculta el badge "Powered by Netlify" que tapa el panel */
-body > div > a[href*="netlify.com"],
-body > a[href*="netlify.com"],
-a[href="https://www.netlify.com"][style*="position"],
-div[style*="position: fixed"][style*="bottom"] a[href*="netlify"] {
+/* Oculta el badge "Powered by Netlify" */
+iframe[src*="netlify"],
+a[href*="netlify.com"],
+a[href*="netlify.app"][style*="position"],
+div[style*="position: fixed"][style*="bottom"] a[href*="netlify"],
+body > div:has(> a[href*="netlify.com"]) {
   display: none !important;
   visibility: hidden !important;
+  opacity: 0 !important;
   pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }

@@ -42,6 +42,7 @@ type GlobePoint = {
   baseSize: number;
   color: string;
   label: string;
+  phase: number;
 };
 
 @Component({
@@ -78,6 +79,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private globe?: GlobeInstance;
   private timer?: ReturnType<typeof setTimeout>;
   private resumeRotateTimer?: ReturnType<typeof setTimeout>;
+  private pulseTimer?: ReturnType<typeof setInterval>;
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
@@ -87,36 +89,42 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private onUserInteract = () => this.pauseAutoRotate();
 
   ngAfterViewInit(): void {
-    const ocean = this.flatTexture('#0b1f3a');
+    const ocean = this.flatTexture('#0a1628');
     this.globe = new Globe(this.globeHost.nativeElement, {
       animateIn: false,
       waitForGlobeReady: true,
     })
       .globeImageUrl(ocean)
-      .backgroundColor('#020617')
+      .backgroundColor('rgba(0,0,0,0)')
       .showAtmosphere(true)
-      .atmosphereColor('#2563eb')
-      .atmosphereAltitude(0.16)
+      .atmosphereColor('#3b82f6')
+      .atmosphereAltitude(0.18)
       .polygonsData([])
-      .polygonCapColor(() => 'rgba(30, 64, 120, 0.92)')
-      .polygonSideColor(() => 'rgba(15, 35, 70, 0.65)')
-      .polygonStrokeColor(() => '#60a5fa')
-      .polygonAltitude(0.004)
+      .polygonCapColor(() => '#0a1628')
+      .polygonSideColor(() => '#0a1628')
+      .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
+      .polygonAltitude(0.012)
       .polygonsTransitionDuration(0)
       .pointsData([])
-      .pointAltitude(0.008)
+      .pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint))
       .pointRadius((d: object) => this.scaledRadius(d as GlobePoint))
       .pointColor('color')
       .pointLabel('label')
       .pointsMerge(false)
+      .ringsData([])
+      .ringColor(() => (t: number) => `rgba(56, 189, 248, ${Math.max(0, 0.55 * (1 - t))})`)
+      .ringMaxRadius((d: object) => 0.8 + (d as GlobePoint).baseSize * 1.1)
+      .ringPropagationSpeed(1.6)
+      .ringRepeatPeriod(2200)
       .enablePointerInteraction(true);
 
     const controls = this.globe.controls();
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.28;
+    controls.autoRotateSpeed = 0.55;
     controls.enableZoom = true;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+    controls.minDistance = 120;
     controls.addEventListener('change', this.onControlsChange);
     controls.addEventListener('start', this.onUserInteract);
     this.globeHost.nativeElement.addEventListener('wheel', this.onUserInteract, { passive: true });
@@ -125,6 +133,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.resizeGlobe();
     window.addEventListener('resize', this.onResize);
+    this.pulseTimer = setInterval(() => this.tickPulse(), 80);
     void this.loadBorders();
     void this.bootstrap();
   }
@@ -169,9 +178,19 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private scaledRadius(point: GlobePoint): number {
     const alt = this.altitude();
-    // Más lejos (alt alta) → puntos un poco mayores; cerca → muy pequeños para poder elegir
-    const zoomFactor = Math.max(0.045, Math.min(0.22, alt * 0.085));
+    const t = Math.max(0, Math.min(1, (alt - 0.4) / 1.9));
+    const zoomFactor = 0.14 + t * 0.95;
     return point.baseSize * zoomFactor;
+  }
+
+  private pulseAltitude(point: GlobePoint): number {
+    const t = Date.now() / 1000;
+    return 0.012 + 0.01 * (0.5 + 0.5 * Math.sin(t * 2.4 + point.phase));
+  }
+
+  private tickPulse(): void {
+    if (!this.globe || !this.lastPoints.length) return;
+    this.globe.pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint));
   }
 
   private syncPointScale(): void {
@@ -186,7 +205,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     clearTimeout(this.resumeRotateTimer);
     this.resumeRotateTimer = setTimeout(() => {
       if (!this.destroyed && this.globe) this.globe.controls().autoRotate = true;
-    }, 4500);
+    }, 5500);
   }
 
   private resizeGlobe(): void {
@@ -200,7 +219,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private async loadBorders(): Promise<void> {
     try {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
-      this.globe?.polygonsData(countries.features ?? []);
+      const features = (countries.features ?? []).map((f) => ({
+        ...f,
+        properties: { ...(f.properties ?? {}) },
+      }));
+      this.globe?.polygonsData(features);
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -312,9 +335,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         points.push({
           lat,
           lng: lon,
-          baseSize: magnitude === null ? 0.55 : Math.max(0.4, Math.min(1.4, 0.4 + (magnitude + 1) * 0.1)),
+          baseSize: magnitude === null ? 0.9 : Math.max(0.7, Math.min(2.0, 0.7 + (magnitude + 1) * 0.14)),
           color: this.depthColor(depthOk ? depth : null, depthOk),
           label,
+          phase: Math.random() * Math.PI * 2,
         });
         rows.push({
           id: String(feature.id ?? 'ND'),
@@ -327,10 +351,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
       this.lastPoints = points;
       this.globe?.pointsData(points);
+      const ringPoints = points
+        .filter((p) => p.baseSize >= 1.1)
+        .slice(0, 40);
+      this.globe?.ringsData(ringPoints);
       this.syncPointScale();
       this.count.set(points.length);
       this.omitted.set(omitted);
-      this.eventRows.set(rows.slice(0, 8));
+      this.eventRows.set(rows.slice(0, 40));
       this.truncated.set(Boolean(data.metadata?.truncated));
       this.lastRead.set(new Date().toISOString());
       this.generated.set(this.date(data.metadata?.generated));
@@ -387,7 +415,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.statsSummary.set(
         `n=${r.total ?? 0} · 1h=${r.ultima_hora ?? 0} · media/d=${r.media_por_dia ?? '—'} · media2025=${ref ?? '—'}`
       );
-      this.statsAvisos.set((stats.avisos ?? []).slice(0, 1));
+      this.statsAvisos.set(stats.avisos ?? []);
       const mag = stats.distribuciones?.magnitud ?? [];
       const depth = stats.distribuciones?.profundidad_km ?? [];
       this.statsCountries.set((stats.por_pais ?? []).slice(0, 5));
@@ -410,6 +438,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.destroyed = true;
     clearTimeout(this.timer);
     clearTimeout(this.resumeRotateTimer);
+    clearInterval(this.pulseTimer);
     this.controller.abort();
     window.removeEventListener('resize', this.onResize);
     const controls = this.globe?.controls();
