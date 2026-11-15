@@ -1,0 +1,31 @@
+---
+description: Productor, Kafka, consumidor, idempotencia y calidad (según enunciado local)
+globs: "{producer,consumer,api,sql}/**/*.{py,sql}"
+alwaysApply: false
+---
+
+# Pipeline de datos
+
+Norma: `docs/requisitos/ENUNCIADO.md` §§5–7. Contrato: `docs/requisitos/CONTRATO-API.md`.
+
+## Productor
+
+- Poll USGS ~60s; estado persistente `id`+`updated`.
+- Publicar solo nuevos/revisiones; confirmar Kafka antes de marcar publicado.
+- Mensaje: `source`, `ingested_at`, `mode` (`live`|`replay`), evento; clave = event id.
+- Errores HTTP/JSON: backoff; no borrar estado válido.
+- Filtrar no-`earthquake` conservando motivo (o cuarentena equivalente).
+
+## Consumidor
+
+- Validar → transformar → enriquecer → transacción PG → commit offset.
+- Idempotencia: UNIQUE/upsert; revisión antigua no pisa actual.
+- Cuarentena duradera con motivo.
+- País por geometría (catálogo), nunca parseando `place`.
+- No rellenar nulos con 0; mag/depth negativas no rechazar a ciegas.
+
+## API
+
+- Cumplir contrato local.
+- Fallo de BD → error explícito (no `features: []` fingido).
+- Filtros coherentes entre eventos y estadísticas.

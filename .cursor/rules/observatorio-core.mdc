@@ -1,0 +1,32 @@
+---
+description: Principios siempre activos del Observatorio (rúbrica, stack, requisitos locales)
+alwaysApply: true
+---
+
+# Observatorio — reglas core
+
+## Fuente de verdad (solo dentro del repo)
+
+1. `docs/requisitos/ENUNCIADO.md` — norma
+2. `docs/requisitos/CONTRATO-API.md` — API
+3. `.specify/memory/constitution.md` — principios
+4. `specs/001-observatorio-sismico/` — feature activa
+5. `docs/requisitos/FAQ-ALUMNADO.md` — aclaraciones (no añade requisitos)
+
+MUST NOT depender de carpetas externas al repositorio para requisitos.
+
+## Objetivo
+
+Cumplir la rúbrica al máximo (Extracción, Calidad, Modelado, Análisis, Reflexión) con evidencias comprobables según `docs/requisitos/GUIA-ENTREGABLES.md`.
+
+## Stack (MUST)
+
+Cinco servicios Compose: productor Python+aiokafka, Kafka, consumidor Python+aiokafka, PostgreSQL, API FastAPI. Panel Angular+Leaflet. Sin Spark/Flink/K8s/ML en el mínimo.
+
+## Decisiones
+
+Antes de cambios arriesgados (recrear frontend, cambiar ámbito geográfico, mezclar live/replay, secretos en Git), preguntar.
+
+## Publicación
+
+ngrok/Netlify solo cuando toque la fase de despliegue; no bloquear el pipeline local.

@@ -1,0 +1,20 @@
+---
+description: Checklist de rúbrica y pruebas de aceptación al implementar o documentar
+alwaysApply: true
+---
+
+# Rúbrica y aceptación
+
+Detalle completo: `docs/requisitos/ENUNCIADO.md` §§11–13 y `GUIA-ENTREGABLES.md`.
+
+## Al implementar una pieza
+
+Preguntar: ¿qué criterio de rúbrica refuerza esto y con qué evidencia?
+
+## Pruebas que MUST poder demostrarse
+
+Nuevo; reenvío sin duplicar; revisión nueva; revisión vieja; mag null; coords inválidas → cuarentena; marítimo sin país; restart consumidor; túnel down/up; replay aislado.
+
+## Documentación de entrega (cuando toque)
+
+Diccionario, procedencia, calidad (dimensiones + acciones), modelo, ≥3 conclusiones, complejidad + 3 tamaños + costes, evidencias de pruebas.

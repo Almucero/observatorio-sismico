@@ -1,0 +1,27 @@
+---
+description: Código sencillo y comentarios en español con criterio (sin olor a IA)
+alwaysApply: true
+---
+
+# Estilo de código
+
+## Nivel
+
+- Claro y directo (nivel alumno competente).
+- Sin over-engineering ni capas vacías.
+- Sin código kilométrico ni copy-paste; funciones pequeñas con nombres claros.
+
+## Comentarios (MUST)
+
+- Español sencillo.
+- Solo donde aporte: función no obvia, regla de negocio, tramo complejo.
+- NO comentar `for`/`if` triviales.
+- PROHIBIDO historial o olor a IA: «antes fallaba…», «fix temporal…», narrar el diff.
+
+## Ejemplo
+
+```python
+# País por point-in-polygon; None si mar o sin cobertura
+def assign_country(lon: float, lat: float) -> str | None:
+    ...
+```

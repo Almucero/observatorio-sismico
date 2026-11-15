@@ -1,0 +1,23 @@
+---
+description: Panel Angular Leaflet según material base y contrato local
+globs: "frontend/**/*.{ts,html,css,json}"
+alwaysApply: false
+---
+
+# Frontend Angular
+
+Norma de UI/despliegue: `docs/requisitos/README-MATERIAL-BASE.md` y `CONTRATO-API.md`.
+
+## Base
+
+- Partir del frontend del material (mapa, demo/api, Leaflet).
+- Ampliar: filtros, tabla, gráficos, `last_ingestion`, truncado, REPRODUCCIÓN.
+- En entrega: API propia, no USGS.
+
+## Detalles fáciles de romper
+
+- GeoJSON `[lon, lat]`; `circleMarker` `[lat, lon]`.
+- `apiUrl` sin `/api` final.
+- Conservar capa si falla el fetch; avisar con claridad.
+- Si `truncated: true`, no stats globales sobre la muestra.
+- Comentarios: misma regla global (español, solo si aportan).

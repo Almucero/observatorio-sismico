@@ -1,0 +1,27 @@
+# Dependencias y builds
+node_modules/
+dist/
+.angular/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secretos y entorno local
+.env
+.env.local
+*.pem
+
+# Datos regenerables / volúmenes
+data/raw/
+data/postgres/
+*.dump
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+*.log
+
+# Spec Kit local (si aparece)
+.specify/feature.json
