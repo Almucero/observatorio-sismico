@@ -44,6 +44,7 @@ type GlobePoint = {
   label: string;
   phase: number;
 };
+type Star = { x: number; y: number; size: number; duration: number; delay: number };
 
 @Component({
   selector: 'app-root',
@@ -53,6 +54,14 @@ type GlobePoint = {
 })
 export class AppComponent implements AfterViewInit, OnDestroy {
   @ViewChild('globeHost', { static: true }) globeHost!: ElementRef<HTMLDivElement>;
+
+  readonly starField: Star[] = Array.from({ length: 160 }, () => ({
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: 1 + Math.random() * 2.4,
+    duration: 1.6 + Math.random() * 3.8,
+    delay: Math.random() * 5,
+  }));
 
   readonly mode = signal('Cargando…');
   readonly status = signal('Preparando globo');
@@ -67,7 +76,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
-  readonly statsSummary = signal('—');
+  readonly statsTotal = signal('—');
+  readonly statsLastHour = signal('—');
+  readonly statsDailyAvg = signal('—');
+  readonly statsRef2025 = signal('—');
   readonly statsAvisos = signal<string[]>([]);
   readonly statsCountries = signal<CountryRow[]>([]);
   readonly statsMag = signal<BandRow[]>([]);
@@ -84,8 +96,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private destroyed = false;
   private config?: Config;
   private lastPoints: GlobePoint[] = [];
+  private lastZoomAlt = -1;
   private onResize = () => this.resizeGlobe();
-  private onControlsChange = () => this.syncPointScale();
+  private onControlsChange = () => this.syncVisuals(true);
   private onUserInteract = () => this.pauseAutoRotate();
 
   ngAfterViewInit(): void {
@@ -103,19 +116,21 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .polygonCapColor(() => '#0a1628')
       .polygonSideColor(() => '#0a1628')
       .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
-      .polygonAltitude(0.012)
+      .polygonAltitude(0.004)
       .polygonsTransitionDuration(0)
       .pointsData([])
       .pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint))
       .pointRadius((d: object) => this.scaledRadius(d as GlobePoint))
       .pointColor('color')
       .pointLabel('label')
+      .pointResolution(48)
       .pointsMerge(false)
+      .pointsTransitionDuration(0)
       .ringsData([])
       .ringColor(() => (t: number) => `rgba(56, 189, 248, ${Math.max(0, 0.55 * (1 - t))})`)
-      .ringMaxRadius((d: object) => 0.8 + (d as GlobePoint).baseSize * 1.1)
-      .ringPropagationSpeed(1.6)
-      .ringRepeatPeriod(2200)
+      .ringMaxRadius((d: object) => 0.9 + (d as GlobePoint).baseSize)
+      .ringPropagationSpeed(1.8)
+      .ringRepeatPeriod(2000)
       .enablePointerInteraction(true);
 
     const controls = this.globe.controls();
@@ -133,7 +148,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.resizeGlobe();
     window.addEventListener('resize', this.onResize);
-    this.pulseTimer = setInterval(() => this.tickPulse(), 80);
+    this.pulseTimer = setInterval(() => this.syncVisuals(false), 50);
     void this.loadBorders();
     void this.bootstrap();
   }
@@ -176,25 +191,27 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return this.globe?.pointOfView()?.altitude ?? 2.2;
   }
 
-  private scaledRadius(point: GlobePoint): number {
+  private zoomFactor(): number {
     const alt = this.altitude();
-    const t = Math.max(0, Math.min(1, (alt - 0.4) / 1.9));
-    const zoomFactor = 0.14 + t * 0.95;
-    return point.baseSize * zoomFactor;
+    const t = Math.max(0, Math.min(1, (alt - 0.35) / 2.0));
+    return 0.18 + t * 1.05;
+  }
+
+  private scaledRadius(point: GlobePoint): number {
+    const t = Date.now() / 1000;
+    const breathe = 1 + 0.28 * (0.5 + 0.5 * Math.sin(t * 3.2 + point.phase));
+    return Math.max(0.22, point.baseSize * this.zoomFactor() * breathe);
   }
 
   private pulseAltitude(point: GlobePoint): number {
     const t = Date.now() / 1000;
-    return 0.012 + 0.01 * (0.5 + 0.5 * Math.sin(t * 2.4 + point.phase));
+    return 0.04 + 0.014 * (0.5 + 0.5 * Math.sin(t * 2.6 + point.phase));
   }
 
-  private tickPulse(): void {
+  private syncVisuals(_force = false): void {
     if (!this.globe || !this.lastPoints.length) return;
+    this.lastZoomAlt = this.altitude();
     this.globe.pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint));
-  }
-
-  private syncPointScale(): void {
-    if (!this.globe || !this.lastPoints.length) return;
     this.globe.pointRadius((d: object) => this.scaledRadius(d as GlobePoint));
   }
 
@@ -213,17 +230,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const el = this.globeHost.nativeElement;
     this.globe.width(el.clientWidth);
     this.globe.height(el.clientHeight);
-    this.syncPointScale();
+    this.syncVisuals(true);
   }
 
   private async loadBorders(): Promise<void> {
     try {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
-      const features = (countries.features ?? []).map((f) => ({
-        ...f,
-        properties: { ...(f.properties ?? {}) },
-      }));
-      this.globe?.polygonsData(features);
+      this.globe?.polygonsData(countries.features ?? []);
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -269,13 +282,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private updateStale(lastIngestionMs: number | null | undefined, refreshMs: number): void {
     if (typeof lastIngestionMs !== 'number' || !Number.isFinite(lastIngestionMs)) {
-      this.staleWarning.set('Sin última ingesta');
+      this.staleWarning.set('Sin última ingesta de USGS');
       return;
     }
     const ageMs = Date.now() - lastIngestionMs;
     const threshold = Math.max(180000, refreshMs * 3);
     this.staleWarning.set(
-      ageMs > threshold ? `Ingesta antigua (~${Math.round(ageMs / 60000)} min)` : ''
+      ageMs > threshold
+        ? `Datos desactualizados: última ingesta hace ~${Math.round(ageMs / 60000)} min`
+        : ''
     );
   }
 
@@ -335,7 +350,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         points.push({
           lat,
           lng: lon,
-          baseSize: magnitude === null ? 0.9 : Math.max(0.7, Math.min(2.0, 0.7 + (magnitude + 1) * 0.14)),
+          baseSize: magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
           color: this.depthColor(depthOk ? depth : null, depthOk),
           label,
           phase: Math.random() * Math.PI * 2,
@@ -350,28 +365,26 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       }
 
       this.lastPoints = points;
+      this.lastZoomAlt = -1;
       this.globe?.pointsData(points);
-      const ringPoints = points
-        .filter((p) => p.baseSize >= 1.1)
-        .slice(0, 40);
-      this.globe?.ringsData(ringPoints);
-      this.syncPointScale();
+      this.globe?.ringsData(points.filter((p) => p.baseSize >= 1.15).slice(0, 40));
+      this.syncVisuals(true);
       this.count.set(points.length);
       this.omitted.set(omitted);
       this.eventRows.set(rows.slice(0, 40));
       this.truncated.set(Boolean(data.metadata?.truncated));
-      this.lastRead.set(new Date().toISOString());
+      this.lastRead.set(this.date(Date.now()));
       this.generated.set(this.date(data.metadata?.generated));
       this.lastIngestion.set(this.date(data.metadata?.last_ingestion));
       this.updateStale(data.metadata?.last_ingestion ?? null, Number(config.refreshMs) || 60000);
-      this.status.set(config.mode === 'demo' ? 'Demo estática' : 'API OK');
+      this.status.set(config.mode === 'demo' ? 'Demo estática' : 'Conectada');
       if (config.mode === 'api') await this.loadStats(config, headers, qs);
     } catch {
       if (!this.destroyed) {
-        this.status.set('Fallo API/túnel · se conserva última lectura');
+        this.status.set('Fallo API/túnel (se conserva última lectura)');
         if (this.lastPoints.length) {
           this.globe?.pointsData(this.lastPoints);
-          this.syncPointScale();
+          this.syncVisuals(true);
         }
       }
     } finally {
@@ -390,8 +403,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     qs: string
   ): Promise<void> {
     if (this.truncated()) {
-      this.statsSummary.set('Truncado: sin stats globales');
-      this.statsAvisos.set([]);
+      this.statsTotal.set('—');
+      this.statsLastHour.set('—');
+      this.statsDailyAvg.set('—');
+      this.statsRef2025.set('—');
+      this.statsAvisos.set(['Respuesta truncada: sin estadísticas globales']);
       this.statsCountries.set([]);
       this.statsMag.set([]);
       this.statsDepth.set([]);
@@ -412,9 +428,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       }>(`${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`, headers);
       const r = stats.resumen ?? {};
       const ref = stats.comparacion_historica?.referencia_2025?.media_diaria;
-      this.statsSummary.set(
-        `n=${r.total ?? 0} · 1h=${r.ultima_hora ?? 0} · media/d=${r.media_por_dia ?? '—'} · media2025=${ref ?? '—'}`
+      this.statsTotal.set(String(r.total ?? 0));
+      this.statsLastHour.set(String(r.ultima_hora ?? 0));
+      this.statsDailyAvg.set(
+        typeof r.media_por_dia === 'number' ? r.media_por_dia.toFixed(1) : '—'
       );
+      this.statsRef2025.set(typeof ref === 'number' ? ref.toFixed(1) : '—');
       this.statsAvisos.set(stats.avisos ?? []);
       const mag = stats.distribuciones?.magnitud ?? [];
       const depth = stats.distribuciones?.profundidad_km ?? [];
@@ -424,14 +443,27 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.statsMagMax.set(Math.max(1, ...mag.map((x) => x.count)));
       this.statsDepthMax.set(Math.max(1, ...depth.map((x) => x.count)));
     } catch {
-      this.statsSummary.set('Stats no disponibles');
+      this.statsTotal.set('—');
+      this.statsLastHour.set('—');
+      this.statsDailyAvg.set('—');
+      this.statsRef2025.set('—');
     }
   }
 
   private date(value: unknown): string {
     if (typeof value !== 'number' || !Number.isFinite(value)) return 'ND';
     const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? 'ND' : d.toISOString().replace('.000Z', 'Z');
+    if (Number.isNaN(d.getTime())) return 'ND';
+    return (
+      d.toLocaleString('es-ES', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }) + ' UTC'
+    );
   }
 
   ngOnDestroy(): void {

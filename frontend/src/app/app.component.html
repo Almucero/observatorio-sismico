@@ -1,22 +1,36 @@
 <div class="stage">
-  <div class="stars" aria-hidden="true"></div>
+  <div class="stars" aria-hidden="true">
+    @for (s of starField; track $index) {
+      <span
+        class="star"
+        [style.left.%]="s.x"
+        [style.top.%]="s.y"
+        [style.width.px]="s.size"
+        [style.height.px]="s.size"
+        [style.animation-duration.s]="s.duration"
+        [style.animation-delay.s]="s.delay"
+      ></span>
+    }
+  </div>
   <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
 
   <header class="panel tl">
     <p class="eyebrow">OBSERVATORIO SÍSMICO · {{ mode() }}</p>
-    <h1>Actividad en vivo</h1>
-    <p class="status">{{ status() }} · {{ count() }} pts · omit. {{ omitted() }}</p>
+    <h2>Estado del sistema</h2>
+    <ul class="kv">
+      <li><span>Conexión API</span><b>{{ status() }}</b></li>
+      <li><span>Puntos en mapa</span><b>{{ count() }}</b></li>
+      <li><span>Omitidos (coords inválidas)</span><b>{{ omitted() }}</b></li>
+      <li><span>Última consulta al panel</span><b>{{ lastRead() }}</b></li>
+      <li><span>Respuesta generada</span><b>{{ generated() }}</b></li>
+      <li><span>Última ingesta USGS</span><b>{{ lastIngestion() }}</b></li>
+    </ul>
     @if (truncated()) {
-      <p class="warn">Respuesta truncada</p>
+      <p class="warn">Respuesta truncada: el mapa no muestra todos los eventos</p>
     }
     @if (staleWarning()) {
       <p class="warn">{{ staleWarning() }}</p>
     }
-    <p class="meta">
-      Lectura {{ lastRead() }}<br />
-      Gen. {{ generated() }}<br />
-      Ingesta {{ lastIngestion() }}
-    </p>
   </header>
 
   <section class="panel tr" aria-label="Filtros">
@@ -30,7 +44,7 @@
 
   <section class="panel bl" aria-label="Estadísticas">
     <div class="panel-head">
-      <h2>Stats</h2>
+      <h2>Estadísticas</h2>
       @if (statsAvisos().length) {
         <span class="hint" tabindex="0" aria-label="Avisos">
           !
@@ -42,10 +56,15 @@
         </span>
       }
     </div>
-    <p class="summary">{{ statsSummary() }}</p>
+    <ul class="kv compact">
+      <li><span>Eventos (filtro actual)</span><b>{{ statsTotal() }}</b></li>
+      <li><span>Última hora UTC</span><b>{{ statsLastHour() }}</b></li>
+      <li><span>Media diaria del periodo</span><b>{{ statsDailyAvg() }}</b></li>
+      <li><span>Media diaria 2025 (ref.)</span><b>{{ statsRef2025() }}</b></li>
+    </ul>
     <div class="mini-grid">
       <div>
-        <h3>Mag</h3>
+        <h3>Magnitud</h3>
         <ul class="bars">
           @for (row of statsMag(); track row.banda) {
             <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsMagMax())"></i><b>{{ row.count }}</b></li>
@@ -53,7 +72,7 @@
         </ul>
       </div>
       <div>
-        <h3>Prof. km</h3>
+        <h3>Profundidad (km)</h3>
         <ul class="bars">
           @for (row of statsDepth(); track row.banda) {
             <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsDepthMax())"></i><b>{{ row.count }}</b></li>
@@ -61,7 +80,7 @@
         </ul>
       </div>
       <div>
-        <h3>País</h3>
+        <h3>Por país</h3>
         <ul class="plain">
           @for (row of statsCountries(); track row.country_id) {
             <li>{{ row.country_name }} <b>{{ row.count }}</b></li>
@@ -69,7 +88,7 @@
         </ul>
       </div>
     </div>
-    <p class="legend">◉ &lt;70 km · ◉ 70–300 · ◉ ≥300 · gris ND</p>
+    <p class="legend">Color: ◉ &lt;70 km · ◉ 70–300 · ◉ ≥300 · gris sin profundidad</p>
   </section>
 
   <section class="panel br" aria-label="Tabla de eventos">
