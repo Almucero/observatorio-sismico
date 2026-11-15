@@ -78,7 +78,7 @@
 - [x] T080 README reproducible completo (FR-010, SC-003)
 - [x] T081 Memoria: diccionario, procedencia, modelo, complejidad 3 tamaños, costes (SC-002, SC-005)
 - [x] T082 Evidencia restart consumidor (SC-001)
-- [ ] T083 Lista final GUIA-ENTREGABLES
+- [x] T083 Lista final GUIA-ENTREGABLES
 
 ## Dependencies
 
