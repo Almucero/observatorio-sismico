@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import signal
-from datetime import datetime, timezone
+from datetime import datetime
 
 import httpx
 from aiokafka import AIOKafkaProducer
@@ -11,15 +11,11 @@ from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 from aiokafka.errors import TopicAlreadyExistsError
 
 from common.db import connect
-from common.message import build_message, event_id_of
+from common.message import build_message, event_id_of, updated_of
+from producer.feeds import Feed, enabled_feeds
 
 BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP", "kafka:19092")
 TOPIC = os.environ.get("KAFKA_TOPIC_LIVE", "terremotos.live")
-FEED_URL = os.environ.get(
-    "USGS_FEED_URL",
-    "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
-)
-POLL_SECONDS = int(os.environ.get("PRODUCER_POLL_SECONDS", "60"))
 HEALTH_PORT = int(os.environ.get("HEALTH_PORT", "8082"))
 
 log = logging.getLogger("producer")
@@ -35,26 +31,16 @@ async def _health(reader, writer):
         await writer.wait_closed()
 
 
-def _updated_ms(event: dict) -> int | None:
-    props = event.get("properties") or {}
-    value = props.get("updated")
-    return int(value) if isinstance(value, (int, float)) else None
-
-
-def _should_publish(event_id: str, updated_ms: int) -> bool:
+def _should_publish(event_id: str, updated: datetime) -> bool:
     with connect() as conn:
         row = conn.execute(
             "SELECT updated FROM publicado WHERE event_id = %s",
             (event_id,),
         ).fetchone()
-        if row is None:
-            return True
-        known = int(row[0].timestamp() * 1000)
-        return updated_ms > known
+        return row is None or updated > row[0]
 
 
-def _mark_published(event_id: str, updated_ms: int) -> None:
-    updated = datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc)
+def _mark_published(event_id: str, updated: datetime) -> None:
     with connect() as conn:
         conn.execute(
             """
@@ -70,15 +56,16 @@ def _mark_published(event_id: str, updated_ms: int) -> None:
         conn.commit()
 
 
-def _set_last_ingestion() -> None:
+def _set_last_ingestion(state_key: str) -> None:
     with connect() as conn:
         conn.execute(
             """
             INSERT INTO estado_ingesta (clave, valor_ts, actualizado_en)
-            VALUES ('last_ingestion', NOW(), NOW())
+            VALUES (%s, NOW(), NOW())
             ON CONFLICT (clave) DO UPDATE
               SET valor_ts = NOW(), actualizado_en = NOW()
-            """
+            """,
+            (state_key,),
         )
         conn.commit()
 
@@ -110,11 +97,11 @@ async def ensure_topic() -> None:
     raise RuntimeError(f"No se pudo crear el topic {TOPIC}") from last_error
 
 
-async def fetch_feed(client: httpx.AsyncClient) -> dict:
+async def fetch_feed(client: httpx.AsyncClient, feed: Feed) -> dict:
     delay = 1
     for attempt in range(6):
         try:
-            response = await client.get(FEED_URL, timeout=30.0)
+            response = await client.get(feed.url, params=feed.params(), timeout=30.0)
             if response.status_code in (429, 500, 502, 503, 504):
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}",
@@ -124,46 +111,55 @@ async def fetch_feed(client: httpx.AsyncClient) -> dict:
             response.raise_for_status()
             return response.json()
         except Exception as exc:
-            log.warning("feed-retry attempt=%s error=%s", attempt + 1, exc)
+            log.warning("feed-retry source=%s attempt=%s error=%s", feed.source, attempt + 1, exc)
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)
-    raise RuntimeError("No se pudo obtener el feed USGS")
+    raise RuntimeError(f"No se pudo obtener el feed de {feed.source}")
 
 
-async def publish_cycle(producer: AIOKafkaProducer, client: httpx.AsyncClient) -> None:
-    data = await fetch_feed(client)
+async def publish_cycle(
+    producer: AIOKafkaProducer, client: httpx.AsyncClient, feed: Feed
+) -> None:
+    data = await fetch_feed(client, feed)
     features = data.get("features") or []
     published = 0
     skipped = 0
     for event in features:
-        event_id = event_id_of(event)
-        updated_ms = _updated_ms(event)
-        if not event_id or updated_ms is None:
+        event_id = event_id_of(event, feed.source)
+        updated = updated_of(event, feed.source)
+        if not event_id or updated is None:
             skipped += 1
             continue
-        if not _should_publish(event_id, updated_ms):
+        if not _should_publish(event_id, updated):
             skipped += 1
             continue
-        message = build_message(event, mode="live")
+        message = build_message(event, mode="live", source=feed.source)
         await producer.send_and_wait(
             TOPIC,
             json.dumps(message, separators=(",", ":")).encode(),
             key=event_id.encode(),
         )
-        _mark_published(event_id, updated_ms)
+        _mark_published(event_id, updated)
         published += 1
-    _set_last_ingestion()
-    log.info("cycle published=%s skipped=%s total=%s", published, skipped, len(features))
+    _set_last_ingestion(feed.state_key)
+    log.info(
+        "cycle source=%s published=%s skipped=%s total=%s",
+        feed.source,
+        published,
+        skipped,
+        len(features),
+    )
 
 
-async def loop(producer: AIOKafkaProducer) -> None:
+# Cada fuente tiene su propio ciclo: si una falla, la otra sigue publicando
+async def loop(producer: AIOKafkaProducer, feed: Feed) -> None:
     async with httpx.AsyncClient() as client:
         while True:
             try:
-                await publish_cycle(producer, client)
+                await publish_cycle(producer, client, feed)
             except Exception as exc:
-                log.exception("cycle-failed %s", exc)
-            await asyncio.sleep(POLL_SECONDS)
+                log.exception("cycle-failed source=%s %s", feed.source, exc)
+            await asyncio.sleep(feed.poll_seconds)
 
 
 async def async_main() -> None:
@@ -172,7 +168,7 @@ async def async_main() -> None:
     await ensure_topic()
     producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP, acks="all", linger_ms=0)
     await producer.start()
-    task = asyncio.create_task(loop(producer))
+    tasks = [asyncio.create_task(loop(producer, feed)) for feed in enabled_feeds()]
     stop = asyncio.Event()
     loop_ = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -185,8 +181,9 @@ async def async_main() -> None:
     except asyncio.CancelledError:
         pass
     finally:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await producer.stop()
 
 

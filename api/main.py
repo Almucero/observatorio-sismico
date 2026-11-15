@@ -5,10 +5,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from common.db import connect
+from common.message import EMSC, USGS
 
 app = FastAPI(title="Observatorio sísmico API")
 
 MAX_FEATURES = int(os.environ.get("API_MAX_FEATURES", "5000"))
+# El histórico de 2025 se cargó de USGS con esta magnitud mínima
+HISTORY_MIN_MAG = float(os.environ.get("HISTORY_MIN_MAG", "4"))
+SOURCE_PATTERN = f"^({USGS}|{EMSC})$"
 
 origins = [
     o.strip()
@@ -49,6 +53,7 @@ def _event_filters(
     end_dt: datetime,
     min_mag: float | None,
     country_id: str | None,
+    source: str | None = None,
 ) -> tuple[str, list]:
     clauses = ["event_time >= %s", "event_time < %s"]
     params: list = [start_dt, end_dt]
@@ -58,6 +63,10 @@ def _event_filters(
     if country_id:
         clauses.append("country_id = %s")
         params.append(country_id)
+    if source:
+        # El feed y el histórico son dos accesos a USGS: todo lo que no es EMSC cuenta como USGS
+        clauses.append("(source = %s) = %s")
+        params += [EMSC, source == EMSC]
     return " AND ".join(clauses), params
 
 
@@ -85,16 +94,17 @@ def eventos(
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
+    source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
     mode: str = Query(default="live", pattern="^(live|replay)$"),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
-        where, params = _event_filters(start_dt, end_dt, min_mag, country_id)
+        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source)
         table = _actual_table(mode)
         sql = f"""
             SELECT e.event_id, e.mag, e.mag_type, e.place, e.depth_km,
                    e.longitude, e.latitude, e.event_time, e.updated,
-                   e.country_id, p.name_es
+                   e.country_id, p.name_es, e.source
             FROM {table} e
             LEFT JOIN pais p ON p.country_id = e.country_id
             WHERE {where}
@@ -123,6 +133,7 @@ def eventos(
             updated,
             country,
             country_name,
+            event_source,
         ) = row
         features.append(
             {
@@ -140,6 +151,7 @@ def eventos(
                     "updated": int(updated.timestamp() * 1000),
                     "country_id": country,
                     "country_name": country_name,
+                    "source": event_source,
                 },
             }
         )
@@ -165,11 +177,12 @@ def estadisticas(
     end: str | None = None,
     min_mag: float | None = None,
     country_id: str | None = None,
+    source: str | None = Query(default=None, pattern=SOURCE_PATTERN),
     mode: str = Query(default="live", pattern="^(live|replay)$"),
 ):
     try:
         start_dt, end_dt = _parse_window(start, end)
-        where, params = _event_filters(start_dt, end_dt, min_mag, country_id)
+        where, params = _event_filters(start_dt, end_dt, min_mag, country_id, source)
         table = _actual_table(mode)
 
         with connect() as conn:
@@ -184,6 +197,17 @@ def estadisticas(
                 f"SELECT COUNT(*) FROM {table} e WHERE {where} AND country_id IS NULL",
                 params,
             ).fetchone()[0]
+
+            por_fuente = conn.execute(
+                f"""
+                SELECT CASE WHEN source = %s THEN %s ELSE %s END AS fuente, COUNT(*) AS n
+                FROM {table} e
+                WHERE {where}
+                GROUP BY 1
+                ORDER BY n DESC
+                """,
+                [EMSC, EMSC, USGS] + params,
+            ).fetchall()
 
             por_hora = conn.execute(
                 f"""
@@ -254,7 +278,7 @@ def estadisticas(
             prev_end = start_dt
             prev_start = start_dt - ventana
             prev_where, prev_params = _event_filters(
-                prev_start, prev_end, min_mag, country_id
+                prev_start, prev_end, min_mag, country_id, source
             )
             prev_total = conn.execute(
                 f"SELECT COUNT(*) FROM {table} e WHERE {prev_where}",
@@ -284,7 +308,9 @@ def estadisticas(
             # Media diaria 2025 con los mismos filtros (denominador = 365, días cero incluidos)
             ref_start = datetime(2025, 1, 1, tzinfo=timezone.utc)
             ref_end = datetime(2026, 1, 1, tzinfo=timezone.utc)
-            ref_where, ref_params = _event_filters(ref_start, ref_end, min_mag, country_id)
+            ref_where, ref_params = _event_filters(
+                ref_start, ref_end, min_mag, country_id, source
+            )
             ref_total = conn.execute(
                 f"SELECT COUNT(*) FROM {table} e WHERE {ref_where}",
                 ref_params,
@@ -307,6 +333,10 @@ def estadisticas(
     denominador_dias = len(por_dia) if por_dia else 1
     media_por_dia = total / denominador_dias
 
+    # La referencia es USGS con M >= HISTORY_MIN_MAG: solo es equivalente un periodo con esa misma muestra
+    hay_emsc = any(fuente == EMSC for fuente, _ in por_fuente)
+    comparable = min_mag is not None and min_mag >= HISTORY_MIN_MAG and not hay_emsc
+
     now = datetime.now(timezone.utc)
     # Periodo reciente incompleto si el fin cae en el día UTC actual o futuro
     periodo_incompleto = end_dt.astimezone(timezone.utc).date() >= now.date()
@@ -320,6 +350,12 @@ def estadisticas(
             f"Hay {dias_cero} día(s) sin eventos; el denominador de la media incluye esos ceros."
         )
 
+    if not comparable:
+        avisos.append(
+            f"La media de 2025 solo incluye terremotos de USGS con magnitud {HISTORY_MIN_MAG:g} o mayor: "
+            "para comparar muestras equivalentes, filtra por fuente USGS y esa magnitud mínima."
+        )
+
     return {
         "periodo": {
             "start": start_dt.isoformat().replace("+00:00", "Z"),
@@ -331,6 +367,7 @@ def estadisticas(
         "filtros": {
             "min_mag": min_mag,
             "country_id": country_id,
+            "source": source,
         },
         "resumen": {
             "total": total,
@@ -349,6 +386,7 @@ def estadisticas(
             for row in por_hora
         ],
         "por_dia": por_dia,
+        "por_fuente": [{"source": row[0], "count": row[1]} for row in por_fuente],
         "por_pais": [
             {
                 "country_id": row[0],
@@ -374,9 +412,9 @@ def estadisticas(
                 "total": ref_total,
                 "dias_denominador": 365,
                 "media_diaria": round(ref_total / 365, 4),
-                "filtros_equivalentes": True,
+                "filtros_equivalentes": comparable,
             },
-            "nota": "Ventana anterior de igual duración + media diaria 2025 con mismos min_mag/country_id (días cero en denominador).",
+            "nota": "Ventana anterior de igual duración + media diaria 2025 con mismos min_mag/country_id/source (días cero en denominador).",
         },
         "avisos": avisos,
         "registros_sin_valor": {

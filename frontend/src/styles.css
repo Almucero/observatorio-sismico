@@ -51,6 +51,7 @@ html, body {
 .quake-card .depth { color: #c7d2fe; }
 .quake-card .time { color: #7dd3fc; }
 .quake-card .country { color: #86efac; }
+.quake-card .source { color: #f0abfc; }
 
 .quake-card .depth::before {
   content: "";

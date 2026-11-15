@@ -9,8 +9,8 @@ import httpx
 from aiokafka import AIOKafkaProducer
 
 from common.db import connect
-from common.message import build_message, event_id_of
-from producer.main import TOPIC, BOOTSTRAP, _mark_published, _should_publish, _updated_ms, ensure_topic
+from common.message import build_message, event_id_of, updated_of
+from producer.main import TOPIC, BOOTSTRAP, _mark_published, _should_publish, ensure_topic
 
 log = logging.getLogger("history")
 FDSN = "https://earthquake.usgs.gov/fdsnws/event/1/query"
@@ -101,7 +101,7 @@ async def load_year(year: int, min_mag: float) -> None:
     published = 0
     skipped = 0
     # Evita republish si un borde de mes se solapa entre ventanas
-    seen_keys: set[tuple[str, int]] = set()
+    seen_keys: set[tuple[str, datetime]] = set()
     try:
         async with httpx.AsyncClient() as client:
             for start, end in _months(year):
@@ -110,16 +110,16 @@ async def load_year(year: int, min_mag: float) -> None:
                 log.info("month %s→%s features=%s", start, end, len(features))
                 for event in features:
                     event_id = event_id_of(event)
-                    updated_ms = _updated_ms(event)
-                    if not event_id or updated_ms is None:
+                    updated = updated_of(event)
+                    if not event_id or updated is None:
                         skipped += 1
                         continue
-                    key = (event_id, updated_ms)
+                    key = (event_id, updated)
                     if key in seen_keys:
                         skipped += 1
                         continue
                     seen_keys.add(key)
-                    if not _should_publish(event_id, updated_ms):
+                    if not _should_publish(event_id, updated):
                         skipped += 1
                         continue
                     message = build_message(event, mode="live", source="usgs-fdsn")
@@ -128,7 +128,7 @@ async def load_year(year: int, min_mag: float) -> None:
                         json.dumps(message, separators=(",", ":")).encode(),
                         key=event_id.encode(),
                     )
-                    _mark_published(event_id, updated_ms)
+                    _mark_published(event_id, updated)
                     published += 1
                 await asyncio.sleep(1)
         with connect() as conn:

@@ -1,0 +1,103 @@
+{
+  "cases": [
+    {
+      "caso": "emsc_solo_se_muestra",
+      "evento_actual": [
+        "emsc:test-dup-a-e"
+      ],
+      "versiones": 1,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "usgs_llega_despues_y_sustituye",
+      "evento_actual": [
+        "test-dup-a-u"
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-a-e",
+          "principal": "test-dup-a-u",
+          "distancia_km": 11.1,
+          "diferencia_s": 5.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "emsc_llega_despues_y_no_se_muestra",
+      "evento_actual": [
+        "test-dup-b-u"
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-b-e",
+          "principal": "test-dup-b-u",
+          "distancia_km": 9.1,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "reenvio_no_cambia_nada",
+      "evento_actual": [
+        "test-dup-b-u"
+      ],
+      "versiones": 2,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-b-e",
+          "principal": "test-dup-b-u",
+          "distancia_km": 9.1,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "revision_del_duplicado_solo_guarda_version",
+      "evento_actual": [
+        "test-dup-b-u"
+      ],
+      "versiones": 3,
+      "duplicados": [
+        {
+          "event_id": "emsc:test-dup-b-e",
+          "principal": "test-dup-b-u",
+          "distancia_km": 9.1,
+          "diferencia_s": 3.0
+        }
+      ],
+      "ok": true
+    },
+    {
+      "caso": "misma_hora_a_500_km_son_dos",
+      "evento_actual": [
+        "emsc:test-dup-c-e",
+        "test-dup-c-u"
+      ],
+      "versiones": 2,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "mismo_lugar_90_s_despues_son_dos",
+      "evento_actual": [
+        "emsc:test-dup-d-e",
+        "test-dup-d-u"
+      ],
+      "versiones": 2,
+      "duplicados": [],
+      "ok": true
+    },
+    {
+      "caso": "emsc_no_terremoto_a_cuarentena",
+      "motivo": "tipo_excluido:kx",
+      "ok": true
+    }
+  ],
+  "all_ok": true
+}

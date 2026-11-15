@@ -29,6 +29,16 @@ docker compose logs -f producer consumer api
 
 Datos: volumen Docker `pgdata` (sobrevive a reinicios). Parar: `docker compose down` (sin `-v` conserva PG).
 
+### Segunda fuente (ampliación opcional)
+
+El productor consulta también el catálogo de EMSC para cubrir los terremotos pequeños de fuera de EE. UU. que el feed de USGS no publica; el consumidor detecta los que ya llegaron por USGS y no los duplica (memoria §10). Con `EMSC_ENABLED=false` en `.env` solo se usa USGS.
+
+Una base creada antes de esta ampliación necesita la migración una vez (las nuevas la aplican solas):
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB' < sql/04_fuentes.sql
+```
+
 ## Frontend
 
 ```bash

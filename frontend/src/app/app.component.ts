@@ -32,6 +32,7 @@ type Properties = {
   updated: number;
   country_name?: string | null;
   country_id?: string | null;
+  source?: string;
 };
 type Events = FeatureCollection<Point, Properties> & {
   metadata?: {
@@ -45,11 +46,13 @@ type Events = FeatureCollection<Point, Properties> & {
 };
 type StatsResponse = {
   periodo?: { start?: string; end?: string; dias?: number };
-  filtros?: { min_mag?: number | null };
   resumen?: { total?: number; ultima_hora?: number; media_por_dia?: number };
   por_pais?: CountryRow[];
+  por_fuente?: { source: string; count: number }[];
   distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
-  comparacion_historica?: { referencia_2025?: { media_diaria?: number } };
+  comparacion_historica?: {
+    referencia_2025?: { media_diaria?: number; filtros_equivalentes?: boolean };
+  };
   avisos?: string[];
 };
 type Config = {
@@ -69,6 +72,7 @@ type StatsView = {
   lastHour: string;
   dailyAvg: string;
   ref2025: string;
+  totalTip: string;
   dailyTip: string;
   refTip: string;
   comparable: boolean;
@@ -86,6 +90,7 @@ type EventRow = {
   color: string;
   time: string;
   country: string;
+  source: string;
 };
 type QuakeNode = { core: Mesh; wave: Mesh<CircleGeometry, MeshBasicMaterial> };
 type GlobePoint = {
@@ -122,8 +127,8 @@ const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 5500;
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
-// El histórico de 2025 cargado solo contiene terremotos de magnitud 4 o mayor
-const HISTORY_MIN_MAG = 4;
+// El feed de USGS y su histórico cuentan como la misma fuente
+const SOURCE_LABELS: Record<string, string> = { usgs: 'USGS', 'usgs-fdsn': 'USGS', emsc: 'EMSC' };
 const DEPTH_COLORS = { shallow: '#38bdf8', mid: '#6366f1', deep: '#c084fc', unknown: '#94a3b8' };
 const MAG_BANDS: Band[] = [
   { band: '<2', label: '< 2', about: 'Magnitud menor que 2' },
@@ -156,19 +161,21 @@ const DEPTH_BANDS: Band[] = [
   {
     band: NO_DATA,
     label: 'Sin dato',
-    about: 'Profundidad no publicada por USGS',
+    about: 'Profundidad no publicada por la fuente',
     color: DEPTH_COLORS.unknown,
   },
 ];
 const REF_TIP =
   'Media de terremotos por día en 2025 con los mismos filtros. Sirve de referencia para saber si el periodo es más o menos activo de lo habitual.';
 const REF_LIMITED =
-  'El histórico de 2025 solo contiene terremotos de magnitud 4 o mayor, así que su media no es comparable con la del periodo. Para comparar muestras equivalentes, filtra por magnitud mínima 4.';
+  'Media diaria de 2025, calculada solo con terremotos de USGS de magnitud 4 o mayor. No es comparable con este periodo: para comparar muestras equivalentes, filtra por fuente USGS y magnitud mínima 4.';
+const TOTAL_TIP = 'Terremotos del periodo consultado que cumplen los filtros';
 const EMPTY_STATS: StatsView = {
   total: '—',
   lastHour: '—',
   dailyAvg: '—',
   ref2025: '—',
+  totalTip: `${TOTAL_TIP}.`,
   dailyTip: 'Media de terremotos por día en el periodo.',
   refTip: REF_TIP,
   comparable: true,
@@ -243,6 +250,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
+  readonly source = signal('');
   readonly stats = signal<StatsView>(EMPTY_STATS);
   readonly eventRows = signal<EventRow[]>([]);
   readonly collapsed = signal<Record<PanelId, boolean>>({
@@ -336,6 +344,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   onCountry(event: Event): void {
     this.countryId.set((event.target as HTMLInputElement).value.trim().toUpperCase());
   }
+  onSource(event: Event): void {
+    this.source.set((event.target as HTMLSelectElement).value);
+  }
 
   applyFilters(): void {
     clearTimeout(this.timer);
@@ -347,6 +358,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.endLocal.set('');
     this.minMag.set(null);
     this.countryId.set('');
+    this.source.set('');
     this.applyFilters();
   }
 
@@ -651,6 +663,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       params.set('min_mag', String(this.minMag()));
     }
     if (this.countryId()) params.set('country_id', this.countryId());
+    if (this.source()) params.set('source', this.source());
     if (this.config?.dataMode === 'replay') params.set('mode', 'replay');
     const qs = params.toString();
     return qs ? `?${qs}` : '';
@@ -701,6 +714,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       `<dt>Profundidad</dt><dd class="depth" style="--depth: ${row.color}">${shown(row.depth)}</dd>`,
       `<dt>Fecha</dt><dd class="time">${row.time}</dd>`,
       `<dt>País</dt><dd class="country">${this.escape(row.country)}</dd>`,
+      `<dt>Fuente</dt><dd class="source">${row.source}</dd>`,
       '</dl>',
       `<small>ID ${this.escape(row.id)}</small>`,
       '</div>',
@@ -761,6 +775,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           color: this.depthColor(depth),
           time: this.date(p.time),
           country: p.country_name ?? 'Sin país asignado',
+          source: SOURCE_LABELS[p.source ?? ''] ?? 'Sin dato',
         };
         rows.push(row);
         points.push({
@@ -820,8 +835,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       const summary = data.resumen ?? {};
       const total = summary.total ?? 0;
       const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
-      const comparable = (data.filtros?.min_mag ?? -Infinity) >= HISTORY_MIN_MAG;
-      const avisos = data.avisos ?? [];
+      const comparable = data.comparacion_historica?.referencia_2025?.filtros_equivalentes ?? true;
+      const sources = (data.por_fuente ?? [])
+        .map((row) => `${row.count} de ${SOURCE_LABELS[row.source] ?? row.source}`)
+        .join(' y ');
       const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
         label: row.country_name,
         about:
@@ -836,10 +853,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         dailyAvg:
           typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
         ref2025: typeof ref === 'number' ? ref.toFixed(1) : '—',
+        totalTip: sources ? `${TOTAL_TIP}: ${sources}.` : `${TOTAL_TIP}.`,
         dailyTip: `Terremotos del periodo divididos entre los días naturales (UTC) que abarca: ${data.periodo?.dias ?? 1}.`,
         refTip: comparable ? REF_TIP : REF_LIMITED,
         comparable,
-        avisos: comparable ? avisos : [...avisos, REF_LIMITED],
+        avisos: data.avisos ?? [],
         countries: toBars(countries, total),
         mag: bandBars(MAG_BANDS, data.distribuciones?.magnitud, total),
         depth: bandBars(DEPTH_BANDS, data.distribuciones?.profundidad_km, total),

@@ -2,6 +2,8 @@ import json
 from datetime import datetime, timezone
 
 from common.db import connect
+from common.message import USGS
+from consumer.duplicates import is_duplicate, lock_matching, merge_duplicates
 from consumer.geo import assign_country
 
 
@@ -41,79 +43,85 @@ def upsert_country(info: dict) -> None:
         conn.commit()
 
 
-def persist_event(record: dict, message: dict, schema: str = "public") -> None:
+def _table(name: str, schema: str) -> str:
+    return name if schema == "public" else f"{schema}.{name}"
+
+
+def _country_id(record: dict) -> str | None:
     country = assign_country(record["longitude"], record["latitude"])
-    country_id = None
-    if country:
-        upsert_country(country)
-        country_id = country["country_id"]
+    if not country:
+        return None
+    upsert_country(country)
+    return country["country_id"]
 
-    ingested_at = datetime.now(timezone.utc)
-    version_table = "evento_version" if schema == "public" else f"{schema}.evento_version"
-    actual_table = "evento_actual" if schema == "public" else f"{schema}.evento_actual"
-    replay_cols = ", replayed_at" if schema != "public" else ""
-    replay_vals = ", NOW()" if schema != "public" else ""
 
+def _insert_version(conn, schema: str, row: dict) -> None:
+    conn.execute(
+        f"""
+        INSERT INTO {_table("evento_version", schema)} (
+            event_id, updated, mag, mag_type, place, depth_km, longitude, latitude,
+            event_time, country_id, ingested_at, source, payload_json
+        ) VALUES (
+            %(event_id)s, %(updated)s, %(mag)s, %(mag_type)s, %(place)s, %(depth_km)s,
+            %(longitude)s, %(latitude)s, %(event_time)s, %(country_id)s, %(ingested_at)s,
+            %(source)s, %(payload)s::jsonb
+        )
+        ON CONFLICT (event_id, updated) DO NOTHING
+        """,
+        row,
+    )
+
+
+# Solo una revisión más reciente cambia la fila; devuelve si la ha cambiado
+def _upsert_actual(conn, schema: str, row: dict) -> bool:
+    table = _table("evento_actual", schema)
+    replayed = ", replayed_at = NOW()" if schema != "public" else ""
+    cursor = conn.execute(
+        f"""
+        INSERT INTO {table} (
+            event_id, mag, mag_type, place, depth_km, longitude, latitude,
+            event_time, updated, country_id, ingested_at, source
+        ) VALUES (
+            %(event_id)s, %(mag)s, %(mag_type)s, %(place)s, %(depth_km)s, %(longitude)s,
+            %(latitude)s, %(event_time)s, %(updated)s, %(country_id)s, %(ingested_at)s,
+            %(source)s
+        )
+        ON CONFLICT (event_id) DO UPDATE SET
+            mag = EXCLUDED.mag,
+            mag_type = EXCLUDED.mag_type,
+            place = EXCLUDED.place,
+            depth_km = EXCLUDED.depth_km,
+            longitude = EXCLUDED.longitude,
+            latitude = EXCLUDED.latitude,
+            event_time = EXCLUDED.event_time,
+            updated = EXCLUDED.updated,
+            country_id = EXCLUDED.country_id,
+            ingested_at = EXCLUDED.ingested_at,
+            source = EXCLUDED.source
+            {replayed}
+        WHERE {table}.updated < EXCLUDED.updated
+        """,
+        row,
+    )
+    return cursor.rowcount == 1
+
+
+def persist_event(record: dict, message: dict, schema: str = "public") -> None:
+    source = message.get("source") or USGS
+    row = {
+        **record,
+        "payload": json.dumps(record["payload"]),
+        "country_id": _country_id(record),
+        "ingested_at": datetime.now(timezone.utc),
+        "source": source,
+    }
+    live = schema == "public"
     with connect() as conn:
         with conn.transaction():
-            conn.execute(
-                f"""
-                INSERT INTO {version_table} (
-                    event_id, updated, mag, mag_type, place, depth_km,
-                    longitude, latitude, event_time, country_id, ingested_at, payload_json
-                    {replay_cols}
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb{replay_vals})
-                ON CONFLICT (event_id, updated) DO NOTHING
-                """,
-                (
-                    record["event_id"],
-                    record["updated"],
-                    record["mag"],
-                    record["mag_type"],
-                    record["place"],
-                    record["depth_km"],
-                    record["longitude"],
-                    record["latitude"],
-                    record["event_time"],
-                    country_id,
-                    ingested_at,
-                    json.dumps(record["payload"]),
-                ),
-            )
-            conn.execute(
-                f"""
-                INSERT INTO {actual_table} (
-                    event_id, mag, mag_type, place, depth_km, longitude, latitude,
-                    event_time, updated, country_id, ingested_at, source
-                    {replay_cols}
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s{replay_vals})
-                ON CONFLICT (event_id) DO UPDATE SET
-                    mag = EXCLUDED.mag,
-                    mag_type = EXCLUDED.mag_type,
-                    place = EXCLUDED.place,
-                    depth_km = EXCLUDED.depth_km,
-                    longitude = EXCLUDED.longitude,
-                    latitude = EXCLUDED.latitude,
-                    event_time = EXCLUDED.event_time,
-                    updated = EXCLUDED.updated,
-                    country_id = EXCLUDED.country_id,
-                    ingested_at = EXCLUDED.ingested_at,
-                    source = EXCLUDED.source
-                    {', replayed_at = NOW()' if schema != 'public' else ''}
-                WHERE {actual_table}.updated < EXCLUDED.updated
-                """,
-                (
-                    record["event_id"],
-                    record["mag"],
-                    record["mag_type"],
-                    record["place"],
-                    record["depth_km"],
-                    record["longitude"],
-                    record["latitude"],
-                    record["event_time"],
-                    record["updated"],
-                    country_id,
-                    ingested_at,
-                    message.get("source") or "usgs",
-                ),
-            )
+            if live:
+                lock_matching(conn)
+            _insert_version(conn, schema, row)
+            if live and is_duplicate(conn, record["event_id"]):
+                return
+            if _upsert_actual(conn, schema, row) and live:
+                merge_duplicates(conn, record, source)
