@@ -12,6 +12,9 @@
     @if (truncated()) {
       <p class="warn">Respuesta truncada: el mapa no usa esta muestra para estadísticas globales.</p>
     }
+    @if (staleWarning()) {
+      <p class="warn">{{ staleWarning() }}</p>
+    }
     <small>
       Última lectura UTC: {{ lastRead() }}<br>
       Generación de la respuesta UTC: {{ generated() }}<br>
@@ -29,9 +32,32 @@
 
   <div class="map" leaflet [leafletOptions]="options" (leafletMapReady)="onMapReady($event)" aria-label="Mapa interactivo de terremotos"></div>
 
+  <section class="events-table" aria-label="Tabla de eventos">
+    <h2>Eventos (hasta 100)</h2>
+    <table>
+      <thead>
+        <tr><th scope="col">ID</th><th scope="col">Lugar</th><th scope="col">Mag</th><th scope="col">Fecha UTC</th><th scope="col">País</th></tr>
+      </thead>
+      <tbody>
+        @for (row of eventRows(); track row.id) {
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.place }}</td>
+            <td>{{ row.mag ?? 'ND' }}</td>
+            <td>{{ row.time }}</td>
+            <td>{{ row.country }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+
   <section class="stats" aria-label="Estadísticas">
     <h2>Estadísticas</h2>
     <p>{{ statsSummary() }}</p>
+    @for (aviso of statsAvisos(); track aviso) {
+      <p class="warn">{{ aviso }}</p>
+    }
     <div class="stats-grid">
       <div>
         <h3>Por país</h3>

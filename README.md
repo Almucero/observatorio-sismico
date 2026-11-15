@@ -48,7 +48,8 @@ Para ver datos reales del backend, en `frontend/public/config.json`:
 ## Spec Kit
 
 - Constitución: `.specify/memory/constitution.md`
-- Tareas: `specs/001-observatorio-sismico/tasks.md`
+- Feature pipeline: `specs/001-observatorio-sismico/`
+- Feature despliegue: `specs/002-despliegue-netlify-ngrok/` (aplazada hasta publicación)
 - Uso: [`docs/USO-SPECKIT.md`](docs/USO-SPECKIT.md)
 
 ## Evidencias

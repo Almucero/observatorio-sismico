@@ -268,14 +268,56 @@ def estadisticas(
                 """,
                 params + [end_dt - timedelta(hours=1)],
             ).fetchone()[0]
+
+            por_dia_raw = conn.execute(
+                f"""
+                SELECT date_trunc('day', event_time AT TIME ZONE 'UTC')::date AS dia,
+                       COUNT(*) AS n
+                FROM {table} e
+                WHERE {where}
+                GROUP BY 1
+                ORDER BY 1
+                """,
+                params,
+            ).fetchall()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"error al consultar: {exc}") from exc
+
+    day_counts = {row[0]: row[1] for row in por_dia_raw}
+    por_dia = []
+    cursor = start_dt.astimezone(timezone.utc).date()
+    end_date = (end_dt - timedelta(microseconds=1)).astimezone(timezone.utc).date()
+    if end_dt <= start_dt:
+        end_date = cursor
+    while cursor <= end_date:
+        por_dia.append({"dia": cursor.isoformat(), "count": day_counts.get(cursor, 0)})
+        cursor += timedelta(days=1)
+
+    dias_con_eventos = sum(1 for d in por_dia if d["count"] > 0)
+    dias_cero = sum(1 for d in por_dia if d["count"] == 0)
+    denominador_dias = len(por_dia) if por_dia else 1
+    media_por_dia = total / denominador_dias
+
+    now = datetime.now(timezone.utc)
+    # Periodo reciente incompleto si el fin cae en el día UTC actual o futuro
+    periodo_incompleto = end_dt.astimezone(timezone.utc).date() >= now.date()
+    avisos = []
+    if periodo_incompleto:
+        avisos.append(
+            "El fin del periodo incluye el día actual (o futuro): la comparación puede estar incompleta."
+        )
+    if dias_cero:
+        avisos.append(
+            f"Hay {dias_cero} día(s) sin eventos; el denominador de la media incluye esos ceros."
+        )
 
     return {
         "periodo": {
             "start": start_dt.isoformat().replace("+00:00", "Z"),
             "end": end_dt.isoformat().replace("+00:00", "Z"),
             "unidad": "UTC",
+            "dias": denominador_dias,
+            "incompleto": periodo_incompleto,
         },
         "filtros": {
             "min_mag": min_mag,
@@ -286,6 +328,9 @@ def estadisticas(
             "ultima_hora": last_1h,
             "sin_magnitud": sin_mag,
             "sin_pais": sin_pais,
+            "media_por_dia": round(media_por_dia, 4),
+            "dias_con_eventos": dias_con_eventos,
+            "dias_cero": dias_cero,
         },
         "por_hora": [
             {
@@ -294,6 +339,7 @@ def estadisticas(
             }
             for row in por_hora
         ],
+        "por_dia": por_dia,
         "por_pais": [
             {
                 "country_id": row[0],
@@ -313,8 +359,9 @@ def estadisticas(
                 "total": prev_total,
             },
             "delta": total - prev_total,
-            "nota": "Compara con la ventana inmediatamente anterior de igual duración sobre evento_actual.",
+            "nota": "Compara con la ventana inmediatamente anterior de igual duración. Media diaria con días cero en el denominador.",
         },
+        "avisos": avisos,
         "registros_sin_valor": {
             "magnitud": sin_mag,
             "pais": sin_pais,

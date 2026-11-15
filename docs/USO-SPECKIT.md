@@ -10,7 +10,8 @@ Guía corta del **flujo de trabajo**. Los requisitos del producto están en `doc
 | `.specify/memory/constitution.md` | Principios MUST |
 | `.cursor/skills/speckit-*` | Skills Spec Kit **adaptadas** al observatorio (ES + gates) |
 | `.cursor/rules/*.mdc` | Reglas Cursor |
-| `specs/001-observatorio-sismico/` | Spec/plan/modelo/contratos |
+| `specs/001-observatorio-sismico/` | Spec/plan/modelo/contratos del pipeline |
+| `specs/002-despliegue-netlify-ngrok/` | Publicación Netlify + ngrok (cuando toque) |
 | `frontend/` | Panel Angular base |
 
 ## Flujo
@@ -28,6 +29,8 @@ En el chat de Cursor, **una skill cada vez**:
 9. `/speckit-converge` — cerrar huecos.
 
 Camino corto: constitution → specify → plan → tasks → implement → converge.
+
+Features numeradas: `001` = observatorio local; `002` = despliegue. No hace falta `003+` salvo un alcance nuevo claro.
 
 ## Reglas Cursor
 

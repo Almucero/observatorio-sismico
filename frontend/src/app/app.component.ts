@@ -9,6 +9,7 @@ type Properties = {
   time: number;
   updated: number;
   country_name?: string | null;
+  country_id?: string | null;
 };
 type Events = FeatureCollection<Point, Properties> & {
   metadata?: {
@@ -29,6 +30,13 @@ type Config = {
 };
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
+type EventRow = {
+  id: string;
+  place: string;
+  mag: number | null;
+  time: string;
+  country: string;
+};
 
 @Component({
   selector: 'app-root', standalone: true, imports: [LeafletDirective],
@@ -40,6 +48,7 @@ export class AppComponent implements OnDestroy {
   readonly lastRead = signal('Sin lectura');
   readonly generated = signal('Sin información');
   readonly lastIngestion = signal('Sin información');
+  readonly staleWarning = signal('');
   readonly count = signal(0);
   readonly omitted = signal(0);
   readonly truncated = signal(false);
@@ -49,11 +58,13 @@ export class AppComponent implements OnDestroy {
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
   readonly statsSummary = signal('Sin estadísticas');
+  readonly statsAvisos = signal<string[]>([]);
   readonly statsCountries = signal<CountryRow[]>([]);
   readonly statsMag = signal<BandRow[]>([]);
   readonly statsDepth = signal<BandRow[]>([]);
   readonly statsMagMax = signal(1);
   readonly statsDepthMax = signal(1);
+  readonly eventRows = signal<EventRow[]>([]);
   readonly options: L.MapOptions = { center: L.latLng(18, 0), zoom: 2, minZoom: 2, maxZoom: 8, preferCanvas: true, worldCopyJump: false };
   private map?: L.Map;
   private events = L.layerGroup();
@@ -133,6 +144,21 @@ export class AppComponent implements OnDestroy {
     return response.json() as Promise<T>;
   }
 
+  private updateStale(lastIngestionMs: number | null | undefined, refreshMs: number): void {
+    if (typeof lastIngestionMs !== 'number' || !Number.isFinite(lastIngestionMs)) {
+      this.staleWarning.set('Sin marca de última ingesta: el productor puede no haber consultado USGS aún.');
+      return;
+    }
+    const ageMs = Date.now() - lastIngestionMs;
+    const threshold = Math.max(180000, refreshMs * 3);
+    if (ageMs > threshold) {
+      const mins = Math.round(ageMs / 60000);
+      this.staleWarning.set(`Ingesta desactualizada (~${mins} min). Revisa productor, red o USGS.`);
+    } else {
+      this.staleWarning.set('');
+    }
+  }
+
   private async refresh(): Promise<void> {
     const config = this.config;
     if (!config) return;
@@ -147,6 +173,7 @@ export class AppComponent implements OnDestroy {
       if (this.destroyed) return;
       if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) throw new Error('Se esperaba FeatureCollection');
       const next = L.layerGroup(); let omitted = 0; let count = 0;
+      const rows: EventRow[] = [];
       for (const feature of data.features) {
         const p = feature.properties;
         const c = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : [];
@@ -159,13 +186,22 @@ export class AppComponent implements OnDestroy {
         popup.textContent = `${p.place ?? 'Sin descripción'}\nMagnitud: ${magnitude ?? 'ND'}\nProfundidad: ${depthOk ? depth + ' km' : 'ND'}\nFecha UTC: ${this.date(p.time)}\nPaís: ${p.country_name ?? 'Sin país asignado'}\nID: ${feature.id ?? 'ND'}`;
         L.circleMarker([lat, lon], { radius: magnitude === null ? 4 : Math.max(3, Math.min(18, 3 + (magnitude + 1) * 2)), color, fillColor: color, fillOpacity: .75, weight: 1 }).bindPopup(popup).addTo(next);
         count++;
+        rows.push({
+          id: String(feature.id ?? 'ND'),
+          place: p.place ?? 'Sin descripción',
+          mag: magnitude,
+          time: this.date(p.time),
+          country: p.country_name ?? 'Sin país asignado',
+        });
       }
       this.events.clearLayers(); this.events.addLayer(next);
       this.count.set(count); this.omitted.set(omitted);
+      this.eventRows.set(rows.slice(0, 100));
       this.truncated.set(Boolean(data.metadata?.truncated));
       this.lastRead.set(new Date().toISOString());
       this.generated.set(this.date(data.metadata?.generated));
       this.lastIngestion.set(this.date(data.metadata?.last_ingestion));
+      this.updateStale(data.metadata?.last_ingestion ?? null, Number(config.refreshMs) || 60000);
       this.status.set(config.mode === 'demo' ? 'Ejemplo estático: no representa actividad real' : 'API accesible · consulta completada');
       if (config.mode === 'api') await this.loadStats(config, headers, qs);
     } catch {
@@ -178,6 +214,7 @@ export class AppComponent implements OnDestroy {
   private async loadStats(config: Config, headers: Record<string, string>, qs: string): Promise<void> {
     if (this.truncated()) {
       this.statsSummary.set('Estadísticas omitidas: la respuesta de eventos está truncada.');
+      this.statsAvisos.set([]);
       this.statsCountries.set([]);
       this.statsMag.set([]);
       this.statsDepth.set([]);
@@ -185,16 +222,18 @@ export class AppComponent implements OnDestroy {
     }
     try {
       const stats = await this.readJson<{
-        resumen?: { total?: number; ultima_hora?: number; sin_magnitud?: number; sin_pais?: number };
+        resumen?: { total?: number; ultima_hora?: number; sin_magnitud?: number; sin_pais?: number; media_por_dia?: number; dias_cero?: number };
         por_pais?: CountryRow[];
         distribuciones?: { magnitud?: BandRow[]; profundidad_km?: BandRow[] };
         comparacion_historica?: { delta?: number };
+        avisos?: string[];
       }>(`${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`, headers);
       const r = stats.resumen ?? {};
       this.statsSummary.set(
-        `Total ${r.total ?? 0} · última hora ${r.ultima_hora ?? 0} · sin magnitud ${r.sin_magnitud ?? 0} · sin país ${r.sin_pais ?? 0}` +
+        `Total ${r.total ?? 0} · última hora ${r.ultima_hora ?? 0} · media/día ${r.media_por_dia ?? 'ND'} · días cero ${r.dias_cero ?? 0}` +
         (stats.comparacion_historica?.delta !== undefined ? ` · Δ vs ventana anterior ${stats.comparacion_historica.delta}` : '')
       );
+      this.statsAvisos.set(stats.avisos ?? []);
       const countries = stats.por_pais ?? [];
       const mag = stats.distribuciones?.magnitud ?? [];
       const depth = stats.distribuciones?.profundidad_km ?? [];

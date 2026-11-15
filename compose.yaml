@@ -43,6 +43,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./sql/02_replay_schema.sql:/docker-entrypoint-initdb.d/02_replay_schema.sql:ro
+      - ./sql/03_consulta_fdsn.sql:/docker-entrypoint-initdb.d/03_consulta_fdsn.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:

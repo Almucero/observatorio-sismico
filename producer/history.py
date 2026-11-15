@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -17,6 +16,36 @@ log = logging.getLogger("history")
 FDSN = "https://earthquake.usgs.gov/fdsnws/event/1/query"
 
 
+def _ensure_log_table() -> None:
+    with connect() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS consulta_fdsn (
+                id BIGSERIAL PRIMARY KEY,
+                start_time TIMESTAMPTZ NOT NULL,
+                end_time TIMESTAMPTZ NOT NULL,
+                min_mag DOUBLE PRECISION NOT NULL,
+                url TEXT NOT NULL,
+                n_registros INTEGER NOT NULL,
+                extraido_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.commit()
+
+
+def _log_query(start: str, end: str, min_mag: float, url: str, n: int) -> None:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO consulta_fdsn (start_time, end_time, min_mag, url, n_registros, extraido_en)
+            VALUES (%s::timestamptz, %s::timestamptz, %s, %s, %s, NOW())
+            """,
+            (start, end, min_mag, url, n),
+        )
+        conn.commit()
+
+
 def _months(year: int) -> list[tuple[str, str]]:
     windows = []
     for month in range(1, 13):
@@ -29,7 +58,9 @@ def _months(year: int) -> list[tuple[str, str]]:
     return windows
 
 
-async def fetch_month(client: httpx.AsyncClient, start: str, end: str, min_mag: float) -> list[dict]:
+async def fetch_window(
+    client: httpx.AsyncClient, start: str, end: str, min_mag: float
+) -> tuple[list[dict], str]:
     params = {
         "format": "geojson",
         "starttime": start,
@@ -54,7 +85,7 @@ async def fetch_month(client: httpx.AsyncClient, start: str, end: str, min_mag: 
             features = data.get("features") or []
             if len(features) >= 20000:
                 raise RuntimeError(f"ventana {start}/{end} alcanzó el tope FDSN (~20k); subdividir")
-            return features
+            return features, url
         except Exception as exc:
             log.warning("fdsn-retry %s-%s attempt=%s error=%s", start, end, attempt + 1, exc)
             await asyncio.sleep(delay)
@@ -63,15 +94,19 @@ async def fetch_month(client: httpx.AsyncClient, start: str, end: str, min_mag: 
 
 
 async def load_year(year: int, min_mag: float) -> None:
+    _ensure_log_table()
     await ensure_topic()
     producer = AIOKafkaProducer(bootstrap_servers=BOOTSTRAP, acks="all", linger_ms=5)
     await producer.start()
     published = 0
     skipped = 0
+    # Evita republish si un borde de mes se solapa entre ventanas
+    seen_keys: set[tuple[str, int]] = set()
     try:
         async with httpx.AsyncClient() as client:
             for start, end in _months(year):
-                features = await fetch_month(client, start, end, min_mag)
+                features, url = await fetch_window(client, start, end, min_mag)
+                _log_query(start, end, min_mag, url, len(features))
                 log.info("month %s→%s features=%s", start, end, len(features))
                 for event in features:
                     event_id = event_id_of(event)
@@ -79,6 +114,11 @@ async def load_year(year: int, min_mag: float) -> None:
                     if not event_id or updated_ms is None:
                         skipped += 1
                         continue
+                    key = (event_id, updated_ms)
+                    if key in seen_keys:
+                        skipped += 1
+                        continue
+                    seen_keys.add(key)
                     if not _should_publish(event_id, updated_ms):
                         skipped += 1
                         continue
@@ -107,10 +147,11 @@ async def load_year(year: int, min_mag: float) -> None:
     finally:
         await producer.stop()
     log.info(
-        "history-done year=%s published=%s skipped=%s at=%s",
+        "history-done year=%s published=%s skipped=%s unique_keys=%s at=%s",
         year,
         published,
         skipped,
+        len(seen_keys),
         datetime.now(timezone.utc).isoformat(),
     )
 

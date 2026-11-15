@@ -87,3 +87,16 @@ US1 → US2 → US3; US4 tras US1+US3; US5 tras US2; US6 tras API; US7 último.
 ## MVP
 
 Completar Phase 1–3 (T001–T015): un evento real visible en API y mapa. **Hecho.**
+
+## Phase 11: Convergence
+
+Añadido tras revisión código ↔ spec/plan/enunciado (2026-11-15). US7 (T070/T071) se rastrea en `specs/002-despliegue-netlify-ngrok/` y no se reabre aquí.
+
+- [x] T090 [P] Frontend: tabla accesible de eventos (no solo agregados por país) (FR-008, GUIA panel)
+- [x] T091 [P] Panel: aviso explícito si `last_ingestion` está desactualizada (p. ej. >2–3× poll) (FR-008 / T060 parcial)
+- [x] T092 API estadísticas: denominador con días sin eventos (ceros) y aviso de periodo reciente incompleto (FR-014)
+- [x] T093 Histórico: registrar consultas FDSN (ventana, fecha extracción, nº registros) de forma auditable (ENUNCIADO §4.2 / FR-013)
+- [x] T094 [P] Memoria: capturas reales de filtros/mapa (hoy hay conclusiones sin capturas) (SC-005 / GUIA §12)
+- [x] T095 Memoria: mediciones concretas tiempo/memoria a 3 tamaños + comparación con/sin índice (ENUNCIADO §10; ahora solo cualitativo)
+- [x] T096 [P] Añadir `specs/001-observatorio-sismico/quickstart.md` con escenarios §11 locales (plan Spec Kit)
+- [x] T097 Deduplicar solapes de bordes de mes en carga FDSN si una ventana se subdivide (ENUNCIADO §4.2)
