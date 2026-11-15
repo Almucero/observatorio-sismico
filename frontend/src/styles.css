@@ -8,7 +8,6 @@ html, body {
 
 * { box-sizing: border-box; }
 
-/* Tooltips del globo */
 .scene-tooltip {
   color: #e2e8f0 !important;
   background: rgba(8, 20, 40, 0.92) !important;
@@ -17,4 +16,14 @@ html, body {
   padding: 8px 10px !important;
   font-size: 12px;
   line-height: 1.35;
+}
+
+/* Oculta el badge "Powered by Netlify" que tapa el panel */
+body > div > a[href*="netlify.com"],
+body > a[href*="netlify.com"],
+a[href="https://www.netlify.com"][style*="position"],
+div[style*="position: fixed"][style*="bottom"] a[href*="netlify"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }

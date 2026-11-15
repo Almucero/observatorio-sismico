@@ -39,7 +39,7 @@ type EventRow = {
 type GlobePoint = {
   lat: number;
   lng: number;
-  size: number;
+  baseSize: number;
   color: string;
   label: string;
 };
@@ -77,37 +77,55 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private globe?: GlobeInstance;
   private timer?: ReturnType<typeof setTimeout>;
+  private resumeRotateTimer?: ReturnType<typeof setTimeout>;
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
   private lastPoints: GlobePoint[] = [];
   private onResize = () => this.resizeGlobe();
+  private onControlsChange = () => this.syncPointScale();
+  private onUserInteract = () => this.pauseAutoRotate();
 
   ngAfterViewInit(): void {
+    const ocean = this.flatTexture('#0b1f3a');
     this.globe = new Globe(this.globeHost.nativeElement, {
       animateIn: false,
       waitForGlobeReady: true,
     })
-      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-      .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-      .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+      .globeImageUrl(ocean)
+      .backgroundColor('#020617')
       .showAtmosphere(true)
-      .atmosphereColor('#3b82f6')
-      .atmosphereAltitude(0.18)
+      .atmosphereColor('#2563eb')
+      .atmosphereAltitude(0.16)
+      .polygonsData([])
+      .polygonCapColor(() => 'rgba(30, 64, 120, 0.92)')
+      .polygonSideColor(() => 'rgba(15, 35, 70, 0.65)')
+      .polygonStrokeColor(() => '#60a5fa')
+      .polygonAltitude(0.004)
+      .polygonsTransitionDuration(0)
       .pointsData([])
-      .pointAltitude(0.01)
-      .pointRadius('size')
+      .pointAltitude(0.008)
+      .pointRadius((d: object) => this.scaledRadius(d as GlobePoint))
       .pointColor('color')
       .pointLabel('label')
       .pointsMerge(false)
       .enablePointerInteraction(true);
 
-    this.globe.controls().autoRotate = true;
-    this.globe.controls().autoRotateSpeed = 0.35;
-    this.globe.controls().enableZoom = true;
-    this.globe.pointOfView({ lat: 20, lng: 10, altitude: 2.2 }, 0);
+    const controls = this.globe.controls();
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.28;
+    controls.enableZoom = true;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.addEventListener('change', this.onControlsChange);
+    controls.addEventListener('start', this.onUserInteract);
+    this.globeHost.nativeElement.addEventListener('wheel', this.onUserInteract, { passive: true });
+    this.globeHost.nativeElement.addEventListener('pointerdown', this.onUserInteract);
+
+    this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.resizeGlobe();
     window.addEventListener('resize', this.onResize);
+    void this.loadBorders();
     void this.bootstrap();
   }
 
@@ -134,11 +152,58 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return Math.max(6, Math.round((value / Math.max(max, 1)) * 100));
   }
 
+  private flatTexture(color: string): string {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8;
+    canvas.height = 8;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return color;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 8, 8);
+    return canvas.toDataURL('image/png');
+  }
+
+  private altitude(): number {
+    return this.globe?.pointOfView()?.altitude ?? 2.2;
+  }
+
+  private scaledRadius(point: GlobePoint): number {
+    const alt = this.altitude();
+    // Más lejos (alt alta) → puntos un poco mayores; cerca → muy pequeños para poder elegir
+    const zoomFactor = Math.max(0.045, Math.min(0.22, alt * 0.085));
+    return point.baseSize * zoomFactor;
+  }
+
+  private syncPointScale(): void {
+    if (!this.globe || !this.lastPoints.length) return;
+    this.globe.pointRadius((d: object) => this.scaledRadius(d as GlobePoint));
+  }
+
+  private pauseAutoRotate(): void {
+    const controls = this.globe?.controls();
+    if (!controls) return;
+    controls.autoRotate = false;
+    clearTimeout(this.resumeRotateTimer);
+    this.resumeRotateTimer = setTimeout(() => {
+      if (!this.destroyed && this.globe) this.globe.controls().autoRotate = true;
+    }, 4500);
+  }
+
   private resizeGlobe(): void {
     if (!this.globe) return;
     const el = this.globeHost.nativeElement;
     this.globe.width(el.clientWidth);
     this.globe.height(el.clientHeight);
+    this.syncPointScale();
+  }
+
+  private async loadBorders(): Promise<void> {
+    try {
+      const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
+      this.globe?.polygonsData(countries.features ?? []);
+    } catch {
+      /* sin fronteras dibujadas; el globo sigue usable */
+    }
   }
 
   private async bootstrap(): Promise<void> {
@@ -148,11 +213,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.config = config;
       const replay = config.dataMode === 'replay';
       this.mode.set(
-        config.mode === 'demo'
-          ? 'DEMO'
-          : replay
-            ? 'REPRODUCCIÓN'
-            : 'LIVE'
+        config.mode === 'demo' ? 'DEMO' : replay ? 'REPRODUCCIÓN' : 'LIVE'
       );
       await this.refresh();
     } catch {
@@ -196,7 +257,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   private depthColor(depth: number | null, depthOk: boolean): string {
-    if (!depthOk) return '#64748b';
+    if (!depthOk) return '#94a3b8';
     if (depth! < 70) return '#38bdf8';
     if (depth! < 300) return '#3b82f6';
     return '#a78bfa';
@@ -251,7 +312,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         points.push({
           lat,
           lng: lon,
-          size: magnitude === null ? 0.25 : Math.max(0.2, Math.min(1.2, 0.2 + (magnitude + 1) * 0.12)),
+          baseSize: magnitude === null ? 0.55 : Math.max(0.4, Math.min(1.4, 0.4 + (magnitude + 1) * 0.1)),
           color: this.depthColor(depthOk ? depth : null, depthOk),
           label,
         });
@@ -266,6 +327,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
       this.lastPoints = points;
       this.globe?.pointsData(points);
+      this.syncPointScale();
       this.count.set(points.length);
       this.omitted.set(omitted);
       this.eventRows.set(rows.slice(0, 8));
@@ -279,7 +341,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     } catch {
       if (!this.destroyed) {
         this.status.set('Fallo API/túnel · se conserva última lectura');
-        if (this.lastPoints.length) this.globe?.pointsData(this.lastPoints);
+        if (this.lastPoints.length) {
+          this.globe?.pointsData(this.lastPoints);
+          this.syncPointScale();
+        }
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
@@ -344,8 +409,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.resumeRotateTimer);
     this.controller.abort();
     window.removeEventListener('resize', this.onResize);
+    const controls = this.globe?.controls();
+    controls?.removeEventListener('change', this.onControlsChange);
+    controls?.removeEventListener('start', this.onUserInteract);
+    this.globeHost.nativeElement.removeEventListener('wheel', this.onUserInteract);
+    this.globeHost.nativeElement.removeEventListener('pointerdown', this.onUserInteract);
     try {
       (this.globe as { _destructor?: () => void } | undefined)?._destructor?.();
     } catch {
