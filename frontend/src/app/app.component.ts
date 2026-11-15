@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
 import Globe, { type GlobeInstance } from 'globe.gl';
-import type { FeatureCollection, Point } from 'geojson';
+import type { Feature, FeatureCollection, Geometry, Point, Position } from 'geojson';
 
 type Properties = {
   mag: number | null;
@@ -44,7 +44,9 @@ type GlobePoint = {
   label: string;
   phase: number;
 };
+type CountryLabel = { lat: number; lng: number; name: string };
 type Star = { x: number; y: number; size: number; duration: number; delay: number };
+type PanelId = 'tl' | 'tr' | 'bl' | 'br';
 
 @Component({
   selector: 'app-root',
@@ -55,12 +57,12 @@ type Star = { x: number; y: number; size: number; duration: number; delay: numbe
 export class AppComponent implements AfterViewInit, OnDestroy {
   @ViewChild('globeHost', { static: true }) globeHost!: ElementRef<HTMLDivElement>;
 
-  readonly starField: Star[] = Array.from({ length: 160 }, () => ({
+  readonly starField: Star[] = Array.from({ length: 280 }, () => ({
     x: Math.random() * 100,
     y: Math.random() * 100,
-    size: 1 + Math.random() * 2.4,
-    duration: 1.6 + Math.random() * 3.8,
-    delay: Math.random() * 5,
+    size: 0.8 + Math.random() * 2.6,
+    duration: 1.4 + Math.random() * 4.2,
+    delay: Math.random() * 6,
   }));
 
   readonly mode = signal('Cargando…');
@@ -87,6 +89,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly statsMagMax = signal(1);
   readonly statsDepthMax = signal(1);
   readonly eventRows = signal<EventRow[]>([]);
+  readonly panelTl = signal(false);
+  readonly panelTr = signal(false);
+  readonly panelBl = signal(false);
+  readonly panelBr = signal(false);
 
   private globe?: GlobeInstance;
   private timer?: ReturnType<typeof setTimeout>;
@@ -96,9 +102,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private destroyed = false;
   private config?: Config;
   private lastPoints: GlobePoint[] = [];
-  private lastZoomAlt = -1;
   private onResize = () => this.resizeGlobe();
-  private onControlsChange = () => this.syncVisuals(true);
+  private onControlsChange = () => this.syncVisuals();
   private onUserInteract = () => this.pauseAutoRotate();
 
   ngAfterViewInit(): void {
@@ -110,25 +115,37 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .globeImageUrl(ocean)
       .backgroundColor('rgba(0,0,0,0)')
       .showAtmosphere(true)
-      .atmosphereColor('#3b82f6')
-      .atmosphereAltitude(0.18)
+      .atmosphereColor('#38bdf8')
+      .atmosphereAltitude(0.28)
       .polygonsData([])
       .polygonCapColor(() => '#0a1628')
       .polygonSideColor(() => '#0a1628')
       .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
       .polygonAltitude(0.004)
       .polygonsTransitionDuration(0)
-      .pointsData([])
-      .pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint))
-      .pointRadius((d: object) => this.scaledRadius(d as GlobePoint))
-      .pointColor('color')
-      .pointLabel('label')
-      .pointResolution(48)
-      .pointsMerge(false)
-      .pointsTransitionDuration(0)
+      .labelsData([])
+      .labelLat('lat')
+      .labelLng('lng')
+      .labelText('name')
+      .labelColor(() => 'rgba(186, 230, 253, 0.82)')
+      .labelSize(0.55)
+      .labelDotRadius(0)
+      .labelAltitude(0.012)
+      .labelResolution(2)
+      .labelsTransitionDuration(0)
+      .htmlElementsData([])
+      .htmlLat('lat')
+      .htmlLng('lng')
+      .htmlAltitude(0.018)
+      .htmlElement((d: object) => this.makeQuakeEl(d as GlobePoint))
+      .htmlElementVisibilityModifier((el: HTMLElement, visible: boolean) => {
+        el.style.opacity = visible ? '1' : '0';
+        el.style.pointerEvents = visible ? 'auto' : 'none';
+      })
+      .htmlTransitionDuration(0)
       .ringsData([])
-      .ringColor(() => (t: number) => `rgba(56, 189, 248, ${Math.max(0, 0.55 * (1 - t))})`)
-      .ringMaxRadius((d: object) => 0.9 + (d as GlobePoint).baseSize)
+      .ringColor(() => (t: number) => `rgba(56, 189, 248, ${Math.max(0, 0.5 * (1 - t))})`)
+      .ringMaxRadius((d: object) => 0.8 + (d as GlobePoint).baseSize)
       .ringPropagationSpeed(1.8)
       .ringRepeatPeriod(2000)
       .enablePointerInteraction(true);
@@ -148,9 +165,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.resizeGlobe();
     window.addEventListener('resize', this.onResize);
-    this.pulseTimer = setInterval(() => this.syncVisuals(false), 50);
+    this.pulseTimer = setInterval(() => this.syncVisuals(), 50);
     void this.loadBorders();
     void this.bootstrap();
+  }
+
+  togglePanel(id: PanelId): void {
+    if (id === 'tl') this.panelTl.update((v) => !v);
+    if (id === 'tr') this.panelTr.update((v) => !v);
+    if (id === 'bl') this.panelBl.update((v) => !v);
+    if (id === 'br') this.panelBr.update((v) => !v);
   }
 
   onStart(event: Event): void {
@@ -194,25 +218,42 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private zoomFactor(): number {
     const alt = this.altitude();
     const t = Math.max(0, Math.min(1, (alt - 0.35) / 2.0));
-    return 0.18 + t * 1.05;
+    return 0.2 + t * 1.15;
   }
 
-  private scaledRadius(point: GlobePoint): number {
+  private htmlPx(point: GlobePoint): number {
     const t = Date.now() / 1000;
-    const breathe = 1 + 0.28 * (0.5 + 0.5 * Math.sin(t * 3.2 + point.phase));
-    return Math.max(0.22, point.baseSize * this.zoomFactor() * breathe);
+    const breathe = 1 + 0.22 * Math.sin(t * 3.2 + point.phase);
+    return Math.max(7, 11 * point.baseSize * this.zoomFactor() * breathe);
   }
 
-  private pulseAltitude(point: GlobePoint): number {
+  private makeQuakeEl(point: GlobePoint): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'quake';
+    el.style.setProperty('--c', point.color);
+    el.style.setProperty('--s', `${this.htmlPx(point)}px`);
+    el.style.setProperty('--delay', `${(point.phase % 2).toFixed(2)}s`);
+    el.title = point.label.replace(/<br\s*\/?>/gi, '\n');
+    (el as HTMLElement & { __point?: GlobePoint }).__point = point;
+    return el;
+  }
+
+  private syncVisuals(): void {
+    if (!this.globe) return;
     const t = Date.now() / 1000;
-    return 0.04 + 0.014 * (0.5 + 0.5 * Math.sin(t * 2.6 + point.phase));
-  }
+    const breath = 0.24 + 0.1 * (0.5 + 0.5 * Math.sin(t * 1.15));
+    this.globe.atmosphereAltitude(breath);
+    this.globe.atmosphereColor(
+      `rgb(${56 + Math.round(30 * Math.sin(t * 0.9))}, ${160 + Math.round(40 * Math.sin(t * 1.1 + 1))}, 248)`
+    );
 
-  private syncVisuals(_force = false): void {
-    if (!this.globe || !this.lastPoints.length) return;
-    this.lastZoomAlt = this.altitude();
-    this.globe.pointAltitude((d: object) => this.pulseAltitude(d as GlobePoint));
-    this.globe.pointRadius((d: object) => this.scaledRadius(d as GlobePoint));
+    if (!this.lastPoints.length) return;
+    const nodes = this.globeHost.nativeElement.querySelectorAll('.quake');
+    nodes.forEach((node) => {
+      const el = node as HTMLElement & { __point?: GlobePoint };
+      if (!el.__point) return;
+      el.style.setProperty('--s', `${this.htmlPx(el.__point)}px`);
+    });
   }
 
   private pauseAutoRotate(): void {
@@ -230,13 +271,57 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const el = this.globeHost.nativeElement;
     this.globe.width(el.clientWidth);
     this.globe.height(el.clientHeight);
-    this.syncVisuals(true);
+    this.syncVisuals();
+  }
+
+  private featureCentroid(feature: Feature<Geometry>): CountryLabel | null {
+    const props = feature.properties as { NAME?: string; ADMIN?: string; LABELRANK?: number } | null;
+    const rank = props?.LABELRANK ?? 99;
+    if (rank > 4) return null;
+    const name = props?.NAME || props?.ADMIN;
+    if (!name) return null;
+
+    const geom = feature.geometry;
+    if (!geom) return null;
+    const rings: Position[][] = [];
+    if (geom.type === 'Polygon') rings.push(...geom.coordinates);
+    if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) rings.push(...poly);
+    }
+    if (!rings.length) return null;
+
+    let best = rings[0];
+    let bestLen = best.length;
+    for (const ring of rings) {
+      if (ring.length > bestLen) {
+        best = ring;
+        bestLen = ring.length;
+      }
+    }
+
+    let sx = 0;
+    let sy = 0;
+    let n = 0;
+    for (const pos of best) {
+      const [lng, lat] = pos;
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      sx += lng;
+      sy += lat;
+      n++;
+    }
+    if (!n) return null;
+    return { lat: sy / n, lng: sx / n, name };
   }
 
   private async loadBorders(): Promise<void> {
     try {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
-      this.globe?.polygonsData(countries.features ?? []);
+      const features = countries.features ?? [];
+      this.globe?.polygonsData(features);
+      const labels = features
+        .map((f) => this.featureCentroid(f))
+        .filter((x): x is CountryLabel => x !== null);
+      this.globe?.labelsData(labels);
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -299,6 +384,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (depth! < 70) return '#38bdf8';
     if (depth! < 300) return '#3b82f6';
     return '#a78bfa';
+  }
+
+  private applyPoints(points: GlobePoint[]): void {
+    this.lastPoints = points;
+    this.globe?.htmlElementsData(points);
+    this.globe?.ringsData(points.filter((p) => p.baseSize >= 1.15).slice(0, 40));
+    this.syncVisuals();
   }
 
   private async refresh(): Promise<void> {
@@ -364,11 +456,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         });
       }
 
-      this.lastPoints = points;
-      this.lastZoomAlt = -1;
-      this.globe?.pointsData(points);
-      this.globe?.ringsData(points.filter((p) => p.baseSize >= 1.15).slice(0, 40));
-      this.syncVisuals(true);
+      this.applyPoints(points);
       this.count.set(points.length);
       this.omitted.set(omitted);
       this.eventRows.set(rows.slice(0, 40));
@@ -382,10 +470,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     } catch {
       if (!this.destroyed) {
         this.status.set('Fallo API/túnel (se conserva última lectura)');
-        if (this.lastPoints.length) {
-          this.globe?.pointsData(this.lastPoints);
-          this.syncVisuals(true);
-        }
+        if (this.lastPoints.length) this.applyPoints(this.lastPoints);
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {

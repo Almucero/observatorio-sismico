@@ -12,102 +12,137 @@
       ></span>
     }
   </div>
+  <div class="aura" aria-hidden="true"></div>
+  <div class="aura aura-soft" aria-hidden="true"></div>
   <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
 
-  <header class="panel tl">
-    <p class="eyebrow">OBSERVATORIO SÍSMICO · {{ mode() }}</p>
-    <h2>Estado del sistema</h2>
-    <ul class="kv">
-      <li><span>Conexión API</span><b>{{ status() }}</b></li>
-      <li><span>Puntos en mapa</span><b>{{ count() }}</b></li>
-      <li><span>Omitidos (coords inválidas)</span><b>{{ omitted() }}</b></li>
-      <li><span>Última consulta al panel</span><b>{{ lastRead() }}</b></li>
-      <li><span>Respuesta generada</span><b>{{ generated() }}</b></li>
-      <li><span>Última ingesta USGS</span><b>{{ lastIngestion() }}</b></li>
-    </ul>
-    @if (truncated()) {
-      <p class="warn">Respuesta truncada: el mapa no muestra todos los eventos</p>
-    }
-    @if (staleWarning()) {
-      <p class="warn">{{ staleWarning() }}</p>
-    }
-  </header>
-
-  <section class="panel tr" aria-label="Filtros">
-    <h2>Filtros</h2>
-    <label>Inicio <input type="datetime-local" [value]="startLocal()" (change)="onStart($event)" /></label>
-    <label>Fin <input type="datetime-local" [value]="endLocal()" (change)="onEnd($event)" /></label>
-    <label>Mag mín <input type="number" step="0.1" [value]="minMag() ?? ''" (change)="onMinMag($event)" placeholder="—" /></label>
-    <label>País <input type="text" [value]="countryId()" (change)="onCountry($event)" placeholder="ESP" maxlength="12" /></label>
-    <button type="button" (click)="applyFilters()">Aplicar</button>
-  </section>
-
-  <section class="panel bl" aria-label="Estadísticas">
-    <div class="panel-head">
-      <h2>Estadísticas</h2>
-      @if (statsAvisos().length) {
-        <span class="hint" tabindex="0" aria-label="Avisos">
-          !
-          <span class="hint-pop">
-            @for (aviso of statsAvisos(); track aviso) {
-              <span>{{ aviso }}</span>
-            }
-          </span>
-        </span>
+  <header class="panel tl" [class.collapsed]="panelTl()">
+    <div class="panel-bar">
+      <div>
+        <p class="eyebrow">OBSERVATORIO SÍSMICO · {{ mode() }}</p>
+        <h2>Estado del sistema</h2>
+      </div>
+      <button type="button" class="fold" (click)="togglePanel('tl')" [attr.aria-label]="panelTl() ? 'Ampliar' : 'Minimizar'">
+        {{ panelTl() ? '▢' : '–' }}
+      </button>
+    </div>
+    <div class="panel-body">
+      <ul class="kv">
+        <li><span>Conexión API</span><b>{{ status() }}</b></li>
+        <li><span>Puntos en mapa</span><b>{{ count() }}</b></li>
+        <li><span>Omitidos</span><b>{{ omitted() }}</b></li>
+        <li><span>Última consulta</span><b>{{ lastRead() }}</b></li>
+        <li><span>Respuesta generada</span><b>{{ generated() }}</b></li>
+        <li><span>Última ingesta USGS</span><b>{{ lastIngestion() }}</b></li>
+      </ul>
+      @if (truncated()) {
+        <p class="warn">Respuesta truncada: el mapa no muestra todos los eventos</p>
+      }
+      @if (staleWarning()) {
+        <p class="warn">{{ staleWarning() }}</p>
       }
     </div>
-    <ul class="kv compact">
-      <li><span>Eventos (filtro actual)</span><b>{{ statsTotal() }}</b></li>
-      <li><span>Última hora UTC</span><b>{{ statsLastHour() }}</b></li>
-      <li><span>Media diaria del periodo</span><b>{{ statsDailyAvg() }}</b></li>
-      <li><span>Media diaria 2025 (ref.)</span><b>{{ statsRef2025() }}</b></li>
-    </ul>
-    <div class="mini-grid">
-      <div>
-        <h3>Magnitud</h3>
-        <ul class="bars">
-          @for (row of statsMag(); track row.banda) {
-            <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsMagMax())"></i><b>{{ row.count }}</b></li>
-          }
-        </ul>
-      </div>
-      <div>
-        <h3>Profundidad (km)</h3>
-        <ul class="bars">
-          @for (row of statsDepth(); track row.banda) {
-            <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsDepthMax())"></i><b>{{ row.count }}</b></li>
-          }
-        </ul>
-      </div>
-      <div>
-        <h3>Por país</h3>
-        <ul class="plain">
-          @for (row of statsCountries(); track row.country_id) {
-            <li>{{ row.country_name }} <b>{{ row.count }}</b></li>
-          }
-        </ul>
-      </div>
+  </header>
+
+  <section class="panel tr" [class.collapsed]="panelTr()" aria-label="Filtros">
+    <div class="panel-bar">
+      <h2>Filtros</h2>
+      <button type="button" class="fold" (click)="togglePanel('tr')" [attr.aria-label]="panelTr() ? 'Ampliar' : 'Minimizar'">
+        {{ panelTr() ? '▢' : '–' }}
+      </button>
     </div>
-    <p class="legend">Color: ◉ &lt;70 km · ◉ 70–300 · ◉ ≥300 · gris sin profundidad</p>
+    <div class="panel-body filters">
+      <label>Inicio <input type="datetime-local" [value]="startLocal()" (change)="onStart($event)" /></label>
+      <label>Fin <input type="datetime-local" [value]="endLocal()" (change)="onEnd($event)" /></label>
+      <label>Mag mín <input type="number" step="0.1" [value]="minMag() ?? ''" (change)="onMinMag($event)" placeholder="—" /></label>
+      <label>País <input type="text" [value]="countryId()" (change)="onCountry($event)" placeholder="ESP" maxlength="12" /></label>
+      <button type="button" class="apply" (click)="applyFilters()">Aplicar</button>
+    </div>
   </section>
 
-  <section class="panel br" aria-label="Tabla de eventos">
-    <h2>Eventos</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr><th>Mag</th><th>Lugar</th><th>País</th></tr>
-        </thead>
-        <tbody>
-          @for (row of eventRows(); track row.id) {
-            <tr>
-              <td>{{ row.mag ?? 'ND' }}</td>
-              <td [title]="row.time + ' · ' + row.id">{{ row.place }}</td>
-              <td>{{ row.country }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+  <section class="panel bl" [class.collapsed]="panelBl()" aria-label="Estadísticas">
+    <div class="panel-bar">
+      <h2>Estadísticas</h2>
+      <button type="button" class="fold" (click)="togglePanel('bl')" [attr.aria-label]="panelBl() ? 'Ampliar' : 'Minimizar'">
+        {{ panelBl() ? '▢' : '–' }}
+      </button>
+    </div>
+    <div class="panel-body">
+      <ul class="kv">
+        <li><span>Eventos (filtro actual)</span><b>{{ statsTotal() }}</b></li>
+        <li><span>Última hora UTC</span><b>{{ statsLastHour() }}</b></li>
+        <li><span>Media diaria del periodo</span><b>{{ statsDailyAvg() }}</b></li>
+        <li>
+          <span class="with-hint">
+            Media diaria 2025 (ref.)
+            @if (statsAvisos().length) {
+              <span class="hint" tabindex="0" aria-label="Avisos">
+                !
+                <span class="hint-pop">
+                  @for (aviso of statsAvisos(); track aviso) {
+                    <span>{{ aviso }}</span>
+                  }
+                </span>
+              </span>
+            }
+          </span>
+          <b>{{ statsRef2025() }}</b>
+        </li>
+      </ul>
+      <div class="mini-grid">
+        <div>
+          <h3>Magnitud</h3>
+          <ul class="bars">
+            @for (row of statsMag(); track row.banda) {
+              <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsMagMax())"></i><b>{{ row.count }}</b></li>
+            }
+          </ul>
+        </div>
+        <div>
+          <h3>Profundidad (km)</h3>
+          <ul class="bars">
+            @for (row of statsDepth(); track row.banda) {
+              <li><span>{{ row.banda }}</span><i [style.width.%]="barWidth(row.count, statsDepthMax())"></i><b>{{ row.count }}</b></li>
+            }
+          </ul>
+        </div>
+        <div>
+          <h3>Por país</h3>
+          <ul class="plain">
+            @for (row of statsCountries(); track row.country_id) {
+              <li><span>{{ row.country_name }}</span><b>{{ row.count }}</b></li>
+            }
+          </ul>
+        </div>
+      </div>
+      <p class="legend">Color: ◉ &lt;70 km · ◉ 70–300 · ◉ ≥300 · gris sin profundidad</p>
+    </div>
+  </section>
+
+  <section class="panel br" [class.collapsed]="panelBr()" aria-label="Tabla de eventos">
+    <div class="panel-bar">
+      <h2>Eventos</h2>
+      <button type="button" class="fold" (click)="togglePanel('br')" [attr.aria-label]="panelBr() ? 'Ampliar' : 'Minimizar'">
+        {{ panelBr() ? '▢' : '–' }}
+      </button>
+    </div>
+    <div class="panel-body">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Mag</th><th>Lugar</th><th>País</th></tr>
+          </thead>
+          <tbody>
+            @for (row of eventRows(); track row.id) {
+              <tr>
+                <td>{{ row.mag ?? 'ND' }}</td>
+                <td [title]="row.time + ' · ' + row.id">{{ row.place }}</td>
+                <td>{{ row.country }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 </div>
