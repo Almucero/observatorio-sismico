@@ -2,13 +2,15 @@
 
 USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 
-Repo: https://github.com/Almucero/observatorio-sismico
+Repo: https://github.com/Almucero/observatorio-sismico  
+Panel (Netlify): https://observatorio-sismico-almucero.netlify.app  
+API (ngrok, con Compose + túnel activos): https://jasmine-unpainted-oat.ngrok-free.dev
 
 ## Requisitos
 
 Índice: [`docs/README.md`](docs/README.md) · Norma: [`docs/requisitos/`](docs/requisitos/README.md)  
 Memoria: [`docs/memoria.md`](docs/memoria.md) · Evidencias: [`docs/evidencias/`](docs/evidencias/)  
-Despliegue: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md)
+Despliegue: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) · Checklist: [`docs/entregables-checklist.md`](docs/entregables-checklist.md)
 
 ## Arranque rápido (backend)
 

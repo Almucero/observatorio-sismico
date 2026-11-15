@@ -68,10 +68,10 @@
 - [x] T060 [US6] Mostrar last_ingestion, generated, aviso desactualizado/fallo API (FR-008)
 - [x] T061 [US6] Manejo truncated: true sin stats globales engañosas (FR-007)
 
-## Phase 9: US7 — Publicación (P3) — aplazar hasta pedirlo
+## Phase 9: US7 — Publicación (P3)
 
-- [ ] T070 [US7] Netlify + CORS origen exacto (FR-010)
-- [ ] T071 [US7] Procedimiento ngrok + evidencias túnel down/up (SC-001)
+- [x] T070 [US7] Netlify + CORS origen exacto (FR-010) — ver `specs/002-despliegue-netlify-ngrok/`
+- [x] T071 [US7] Procedimiento ngrok + evidencias túnel down/up (SC-001) — `docs/evidencias/tunel-down-up.md`
 
 ## Phase 10: Polish / Rúbrica
 

@@ -90,8 +90,15 @@ Mejoras: (1) subdividir FDSN si un mes → 20k; (2) cachear polígonos simplific
 | Mag null / coords / mar | ND / cuarentena / sin país | OK | `calidad.json` |
 | Restart consumidor | Sin duplicar | OK | `restart-consumidor.md` |
 | Replay | Aislado | OK | `replay.md` |
-| Túnel down/up | UI tolera | Pendiente 002 | publicación |
+| Túnel down/up | UI tolera | OK | `tunel-down-up.md` |
 
 ## 8. Replay
 
 Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
+
+## 9. Publicación (defensa)
+
+- Panel: https://observatorio-sismico-almucero.netlify.app  
+- API (túnel): https://jasmine-unpainted-oat.ngrok-free.dev  
+- Durante la defensa: `docker compose up -d` + `ngrok http 127.0.0.1:8000` (si cambia la URL free, actualizar `config.json` y redeploy).  
+- Captura panel: `docs/evidencias/capturas/panel-netlify.png`

@@ -6,6 +6,7 @@ Exportaciones reproducibles de la API (sustituyen/complementan pantallazos del p
 |---------|---------|
 | `filtro-jun2025-m5.json` | `start=2025-06-01` `end=2025-06-08` `min_mag=5` |
 | `stats-2025-m4.json` | año 2025, `min_mag=4` |
+| `panel-netlify.png` | captura del panel público (mapa + estado API) |
 
 Regenerar:
 
