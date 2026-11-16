@@ -1420,12 +1420,12 @@ tbody tr.go:hover .where span {
 
   /* ══════════════════════════════════════════════
      ALTURAS IDÉNTICAS POR PARES EN MÓVIL:
-     - Estado y Filtros: Misma altura con espacio superior e inferior equilibrados (270px)
+     - Estado y Filtros: Misma altura con espacio superior e inferior igualados (282px)
      - Stats y Eventos: Misma altura (370px, respetando el tamaño natural de Stats)
      ══════════════════════════════════════════════ */
   .panel-estado,
   .panel-filtros {
-    height: 270px !important;
+    height: 282px !important;
   }
 
   .panel-stats,
@@ -1437,7 +1437,7 @@ tbody tr.go:hover .where span {
      ADAPTACIÓN ESPECÍFICA: PANEL ESTADO
      ══════════════════════════════════════════════ */
   .panel-estado .body {
-    padding: 8px 14px 16px !important;
+    padding: 8px 14px 22px !important;
     gap: 8px !important;
     overflow: hidden !important;
   }
@@ -1544,8 +1544,8 @@ tbody tr.go:hover .where span {
      ══════════════════════════════════════════════ */
   .panel-filtros .body {
     overflow: hidden !important;
-    padding: 8px 14px 16px !important;
-    gap: 8px !important;
+    padding: 8px 14px 22px !important;
+    gap: 7px !important;
   }
 
   .panel-filtros .fields {
