@@ -907,6 +907,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private async bootstrap(): Promise<void> {
     try {
+      if (typeof screen !== 'undefined' && 'orientation' in screen) {
+        try {
+          void (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('portrait')?.catch?.(() => {});
+        } catch {
+          /* la orientación puede no ser bloqueable por permisos o navegador */
+        }
+      }
       const config = await this.readJson<Config>('config.json');
       if (!['demo', 'api'].includes(config.mode)) throw new Error('Modo inválido');
       this.config = config;

@@ -981,7 +981,8 @@ tbody tr.go:hover .where span {
 
 /* ── Elementos exclusivos de móvil: ocultos en escritorio (> 900px) ── */
 .mobile-nav,
-.sheet-handle {
+.sheet-handle,
+.rotate-device-prompt {
   display: none !important;
 }
 
@@ -1250,6 +1251,11 @@ tbody tr.go:hover .where span {
     transform: translateY(-20dvh) !important;
   }
 
+  /* Ocultar el halo giratorio asimétrico (.sweep) con un menú abierto para evitar sombras extrañas */
+  .stage:not([data-mobile-tab="none"]) .aura.sweep {
+    display: none !important;
+  }
+
   /* ── Docks móviles: flotan encima de la barra de navegación ── */
   .dock {
     position: absolute !important;
@@ -1331,8 +1337,8 @@ tbody tr.go:hover .where span {
   }
 
   .bar {
-    min-height: 40px !important;
-    padding: 6px 12px 6px 14px !important;
+    min-height: 48px !important;
+    padding: 14px 14px 6px 16px !important;
     align-items: center !important;
   }
 
@@ -1395,6 +1401,23 @@ tbody tr.go:hover .where span {
   }
 
   /* ══════════════════════════════════════════════
+     ALTURAS IDÉNTICAS POR PARES EN MÓVIL:
+     - Estado y Filtros: Misma altura (318px)
+     - Stats y Eventos: Misma altura (440px)
+     ══════════════════════════════════════════════ */
+  .panel-estado,
+  .panel-filtros {
+    height: 318px !important;
+    max-height: min(318px, 48dvh) !important;
+  }
+
+  .panel-stats,
+  .panel-eventos {
+    height: 440px !important;
+    max-height: min(440px, 58dvh) !important;
+  }
+
+  /* ══════════════════════════════════════════════
      ADAPTACIÓN ESPECÍFICA: PANEL ESTADO
      ══════════════════════════════════════════════ */
   .panel-estado .tiles {
@@ -1453,6 +1476,10 @@ tbody tr.go:hover .where span {
   }
 
   /* Avisos de API: salen ABAJO del panel de estado en sí, como tarjeta flotante externa */
+  .stage:not([data-mobile-tab="estado"]) .alerts {
+    display: none !important;
+  }
+
   .dock.top .alerts {
     position: static !important;
     width: 100% !important;
@@ -1576,11 +1603,6 @@ tbody tr.go:hover .where span {
   /* ══════════════════════════════════════════════
      ADAPTACIÓN ESPECÍFICA: PANEL EVENTOS (MÁS GRANDE Y ESPACIOSO)
      ══════════════════════════════════════════════ */
-  .panel-eventos {
-    height: min(470px, 60dvh) !important;
-    max-height: min(470px, 60dvh) !important;
-  }
-
   .panel-eventos .body {
     height: 100% !important;
     display: flex !important;
@@ -1729,27 +1751,84 @@ tbody tr.go:hover .where span {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TELÉFONO EN HORIZONTAL / PANTALLA MUY BAJA (≤ 600 × 500)
+   BLOQUEO EN HORIZONTAL PARA MÓVILES (≤ 950 px ancho × ≤ 520 px alto)
+   En modo móvil horizontal, la pantalla es demasiado baja para el globo y paneles;
+   se muestra una pantalla elegante invitando al usuario a rotar a vertical.
    ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 600px) and (max-height: 500px) {
-  .stage:not([data-mobile-tab="none"]) .globe,
-  .stage:not([data-mobile-tab="none"]) .aura {
-    transform: translateY(-12dvh) !important;
+@media (max-width: 950px) and (orientation: landscape) and (max-height: 520px) {
+  .rotate-device-prompt {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    background: rgba(3, 10, 24, 0.94) !important;
+    backdrop-filter: blur(28px) saturate(1.8) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.8) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 24px !important;
+    pointer-events: all !important;
   }
 
-  .dock {
-    bottom: calc(54px + env(safe-area-inset-bottom, 4px)) !important;
+  .rotate-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+    max-width: 320px;
+    padding: 22px 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(160, 205, 255, 0.22);
+    background:
+      linear-gradient(160deg, rgba(120, 180, 255, 0.16), rgba(40, 90, 170, 0.06) 40%, rgba(8, 20, 42, 0.3)),
+      rgba(7, 16, 32, 0.65);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -16px 26px -20px rgba(56, 150, 255, 0.5),
+      0 18px 46px rgba(0, 0, 0, 0.7);
   }
 
-  .panel {
-    max-height: 60dvh !important;
+  .rotate-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #38bdf8;
+    animation: rotate-phone-loop 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 
-  .mobile-nav {
-    height: 44px !important;
+  .rotate-icon svg {
+    width: 36px;
+    height: 36px;
   }
 
-  .mobile-nav button {
-    height: 38px !important;
+  .rotate-card h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: #e6f1ff;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .rotate-card p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #8fa6c4;
+  }
+
+  @keyframes rotate-phone-loop {
+    0%, 20% {
+      transform: rotate(90deg);
+    }
+    55%, 75% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(90deg);
+    }
   }
 }
