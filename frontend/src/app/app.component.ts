@@ -59,7 +59,7 @@ type Events = FeatureCollection<Point, Properties> & {
 };
 type StatsResponse = {
   periodo?: { start?: string; end?: string; duracion_dias?: number };
-  filtros?: { source?: string };
+  filtros?: { source?: string; min_mag?: number | null; country_id?: string | null };
   resumen?: { total?: number; ultima_hora?: number; media_por_dia?: number };
   por_pais?: CountryRow[];
   por_fuente?: { source: string; count: number }[];
@@ -318,7 +318,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly period = signal('—');
   readonly refreshSeconds = signal(60);
   readonly tip = signal<Tip | null>(null);
-  readonly staleWarning = signal('');
+  readonly clock = signal(Date.now());
   readonly count = signal(0);
   readonly total = signal(0);
   readonly omitted = signal(0);
@@ -327,7 +327,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
-  readonly source = signal(USGS);
+  readonly source = signal(ALL_SOURCES);
   readonly sources = signal<SourceInfo[]>([]);
   readonly countryOptions = signal<DropdownOption[]>([ALL_COUNTRIES_OPTION]);
   readonly stats = signal<StatsView>(EMPTY_STATS);
@@ -342,6 +342,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     eventos: false,
   });
 
+  readonly staleWarning = computed(() => {
+    this.clock();
+    return this.staleText(this.sources().filter((item) => item.seleccionada));
+  });
   readonly statusLevel = computed<StatusLevel>(() => {
     if (this.apiFailed()) return 'error';
     if (this.status() === 'Cargando') return 'idle';
@@ -378,8 +382,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   });
   readonly sourceOptions = computed<DropdownOption[]>(() => {
     const known = this.sources().length ? this.sources() : [USGS_SOURCE];
-    const [first, ...rest] = known.map((s) => ({ value: s.source, label: s.nombre, hint: s.cobertura }));
-    return rest.length ? [first, ALL_SOURCES_OPTION, ...rest] : [first];
+    const options = known.map((s) => ({
+      value: s.source,
+      label: s.nombre,
+      hint: s.cobertura,
+    }));
+    if (options.length <= 1) return [ALL_SOURCES_OPTION, ...options];
+    return [options[0], ALL_SOURCES_OPTION, ...options.slice(1)];
   });
   // Fila de estado sobre la ingesta: de la fuente elegida o, con varias, de la más atrasada
   readonly ingestion = computed(() => {
@@ -436,6 +445,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private globe?: GlobeInstance;
   private glow?: Object3D;
   private timer?: ReturnType<typeof setTimeout>;
+  private clockTimer?: ReturnType<typeof setInterval>;
   private frame = 0;
   private dragging = false;
   private hoveringQuake = false;
@@ -446,6 +456,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
+  private catalog: Events | null = null;
+  private catalogAt = 0;
+  private catalogStats: StatsResponse | null = null;
   private points: GlobePoint[] = [];
   private labels: CountryLabel[] = [];
   private labelsPlacedAt = 0;
@@ -544,7 +557,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.endLocal.set('');
     this.minMag.set(null);
     this.countryId.set('');
-    this.source.set(USGS);
+    this.source.set(ALL_SOURCES);
     this.applyFilters();
   }
 
@@ -850,6 +863,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.refreshSeconds.set(Math.round(Math.max(30000, Number(config.refreshMs) || 60000) / 1000));
       const replay = config.dataMode === 'replay';
       this.mode.set(config.mode === 'demo' ? 'DEMO' : replay ? 'REPRODUCCIÓN' : 'LIVE');
+      this.clockTimer = setInterval(() => {
+        if (!this.destroyed) this.clock.set(Date.now());
+      }, 15000);
       await this.refresh();
     } catch {
       this.status.set('Sin config.json');
@@ -887,17 +903,232 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   // Una fuente va con retraso si lleva tres intervalos de consulta sin una descarga correcta
   private staleText(chosen: SourceInfo[]): string {
+    const now = this.clock();
     const names = (list: SourceInfo[]) => LIST.format(list.map((s) => s.nombre));
-    const age = (s: SourceInfo) => Date.now() - (s.last_ingestion ?? 0);
+    const age = (s: SourceInfo) => now - (s.last_ingestion ?? 0);
     const missing = chosen.filter((s) => typeof s.last_ingestion !== 'number');
     if (missing.length) return `No consta ninguna ingesta de ${names(missing)}.`;
     const late = chosen.filter(
       (s) => age(s) > Math.max(180000, this.refreshSeconds() * 3000, s.intervalo_s * 3000)
     );
     if (!late.length) return '';
-    const minutes = Math.round(Math.max(...late.map(age)) / 60000);
+    const minutes = Math.max(1, Math.round(Math.max(...late.map(age)) / 60000));
     const who = chosen.length > 1 ? ` de ${names(late)}` : '';
     return `Datos desactualizados${who}: la última ingesta fue hace ${minutes} min.`;
+  }
+
+  private isBaseQuery(): boolean {
+    return (
+      this.source() === ALL_SOURCES &&
+      !this.startLocal() &&
+      !this.endLocal() &&
+      this.minMag() === null &&
+      !this.countryId()
+    );
+  }
+
+  private rememberCatalog(events: Events, stats: StatsResponse | null, savedAt: number): void {
+    this.catalog = events;
+    this.catalogStats = stats;
+    this.catalogAt = savedAt;
+  }
+
+  private queryWindow(): { start: number; end: number } {
+    const end = this.endLocal() ? Date.parse(this.endLocal()) : Date.now();
+    const start = this.startLocal() ? Date.parse(this.startLocal()) : end - 24 * 3600 * 1000;
+    return {
+      start: Number.isFinite(start) ? start : end - 24 * 3600 * 1000,
+      end: Number.isFinite(end) ? end : Date.now(),
+    };
+  }
+
+  private secondaryIds(): Set<string> {
+    const known = this.catalog?.metadata?.fuentes ?? this.sources();
+    return new Set(known.map((s) => s.source).filter((id) => id !== USGS));
+  }
+
+  private matchesSource(props: Properties): boolean {
+    const selected = this.source();
+    if (selected === ALL_SOURCES) return true;
+    if (selected === USGS) return !this.secondaryIds().has(props.source ?? '');
+    return props.source === selected || (props.otras_fuentes ?? []).includes(selected);
+  }
+
+  private matchesFilters(feature: Events['features'][number], start: number, end: number): boolean {
+    const props = feature.properties;
+    if (!props) return false;
+    if (typeof props.time === 'number' && (props.time < start || props.time > end)) return false;
+    const min = this.minMag();
+    if (min !== null) {
+      if (typeof props.mag !== 'number' || props.mag < min) return false;
+    }
+    const country = this.countryId();
+    if (country && (props.country_id ?? 'SIN_PAIS') !== country) return false;
+    return this.matchesSource(props);
+  }
+
+  private magBand(mag: number | null): string {
+    if (mag === null) return NO_DATA;
+    if (mag < 2) return '<2';
+    if (mag < 3) return '2-3';
+    if (mag < 4) return '3-4';
+    if (mag < 5) return '4-5';
+    if (mag < 6) return '5-6';
+    return '>=6';
+  }
+
+  private depthBand(depth: number | null): string {
+    if (depth === null) return NO_DATA;
+    if (depth < 70) return '0-70';
+    if (depth < 300) return '70-300';
+    return '>=300';
+  }
+
+  private buildLocalStats(
+    features: Events['features'],
+    start: number,
+    end: number,
+    selected: string
+  ): StatsResponse {
+    const hourFrom = end - 3600 * 1000;
+    const magCounts = new Map<string, number>();
+    const depthCounts = new Map<string, number>();
+    const countryCounts = new Map<string, { country_id: string; country_name: string; count: number }>();
+    const sourceCounts = new Map<string, number>();
+    let lastHour = 0;
+    for (const feature of features) {
+      const props = feature.properties;
+      if (!props) continue;
+      const mag = typeof props.mag === 'number' && Number.isFinite(props.mag) ? props.mag : null;
+      const rawDepth = feature.geometry?.coordinates?.[2];
+      const depth = typeof rawDepth === 'number' && Number.isFinite(rawDepth) ? rawDepth : null;
+      const mb = this.magBand(mag);
+      const db = this.depthBand(depth);
+      magCounts.set(mb, (magCounts.get(mb) ?? 0) + 1);
+      depthCounts.set(db, (depthCounts.get(db) ?? 0) + 1);
+      if (typeof props.time === 'number' && props.time >= hourFrom) lastHour++;
+      const countryId = props.country_id ?? 'SIN_PAIS';
+      const countryName = props.country_name ?? 'Sin país asignado';
+      const country = countryCounts.get(countryId) ?? {
+        country_id: countryId,
+        country_name: countryName,
+        count: 0,
+      };
+      country.count++;
+      countryCounts.set(countryId, country);
+      const sid = props.source ?? USGS;
+      sourceCounts.set(sid, (sourceCounts.get(sid) ?? 0) + 1);
+    }
+    const total = features.length;
+    const durationDays = Math.max((end - start) / 86400000, 1 / 86400);
+    const cached = this.catalogStats;
+    const sameFilters =
+      cached?.filtros?.source === selected &&
+      (cached.filtros?.min_mag ?? null) === this.minMag() &&
+      (cached.filtros?.country_id ?? null) === (this.countryId() || null);
+    const ref = sameFilters ? cached?.comparacion_historica?.referencia_2025 : undefined;
+    const avisos = [
+      'Sin API: mapa y estadísticas se calculan sobre la última lectura guardada.',
+      ...(sameFilters ? [] : ['Sin API no se puede recalcular la media de referencia de 2025.']),
+    ];
+    return {
+      periodo: {
+        start: new Date(start).toISOString(),
+        end: new Date(end).toISOString(),
+        duracion_dias: Math.round(durationDays * 10000) / 10000,
+      },
+      filtros: {
+        source: selected,
+        min_mag: this.minMag(),
+        country_id: this.countryId() || null,
+      },
+      resumen: {
+        total,
+        ultima_hora: lastHour,
+        media_por_dia: Math.round((total / durationDays) * 10000) / 10000,
+      },
+      por_fuente: [...sourceCounts.entries()].map(([source, count]) => ({ source, count })),
+      por_pais: [...countryCounts.values()].sort((a, b) => b.count - a.count),
+      distribuciones: {
+        magnitud: [...magCounts.entries()].map(([banda, count]) => ({ banda, count })),
+        profundidad_km: [...depthCounts.entries()].map(([banda, count]) => ({ banda, count })),
+      },
+      comparacion_historica: {
+        referencia_2025: ref ?? {
+          media_diaria: null,
+          filtros_equivalentes: false,
+        },
+      },
+      avisos,
+    };
+  }
+
+  private applyOfflineView(): void {
+    if (!this.catalog) return;
+    const { start, end } = this.queryWindow();
+    const selected = this.source();
+    const fuentes = (this.catalog.metadata?.fuentes ?? [USGS_SOURCE]).map((s) => ({
+      ...s,
+      seleccionada: selected === ALL_SOURCES || s.source === selected,
+    }));
+    const features = this.catalog.features.filter((feature) =>
+      this.matchesFilters(feature, start, end)
+    );
+    const events: Events = {
+      type: 'FeatureCollection',
+      features,
+      metadata: {
+        ...this.catalog.metadata,
+        fuentes,
+        count: features.length,
+        total: features.length,
+        truncated: false,
+      },
+    };
+    this.paintEvents(events, this.catalogAt || Date.now());
+    this.paintStats(this.buildLocalStats(features, start, end, selected));
+  }
+
+  private async loadSharedCatalog(): Promise<boolean> {
+    const cached = await this.fetchSharedReading();
+    if (!cached) return false;
+    this.rememberCatalog(cached.events, cached.stats, cached.savedAt);
+    return true;
+  }
+
+  private async syncSharedCatalog(
+    config: Config,
+    headers: Record<string, string>,
+    current: Events,
+    stats: StatsResponse | null
+  ): Promise<void> {
+    if (this.isBaseQuery()) {
+      this.rememberCatalog(current, stats, Date.now());
+      await this.publishReading(current, stats);
+      return;
+    }
+    try {
+      const replay = config.dataMode === 'replay' ? '&mode=replay' : '';
+      const qs = `?source=${ALL_SOURCES}${replay}`;
+      const base = await this.readJson<Events>(
+        `${config.apiUrl.replace(/\/$/, '')}/api/eventos${qs}`,
+        headers
+      );
+      if (base.type !== 'FeatureCollection' || !Array.isArray(base.features)) return;
+      let baseStats: StatsResponse | null = null;
+      try {
+        baseStats = await this.readJson<StatsResponse>(
+          `${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`,
+          headers
+        );
+      } catch {
+        /* la copia compartida puede ir sin estadísticas */
+      }
+      this.rememberCatalog(base, baseStats, Date.now());
+      await this.publishReading(base, baseStats);
+    } catch {
+      if (!this.catalog) this.rememberCatalog(current, stats, Date.now());
+    }
   }
 
   private depthColor(depth: number | null): string {
@@ -1038,7 +1269,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.truncated.set(Boolean(data.metadata?.truncated));
     this.lastRead.set(this.date(readAt));
     this.generated.set(this.date(data.metadata?.generated));
-    this.staleWarning.set(this.staleText(sources.filter((item) => item.seleccionada)));
   }
 
   private paintStats(data: StatsResponse): void {
@@ -1079,17 +1309,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.period.set(`${this.date(start)} – ${this.date(end)}`);
   }
 
-  private async showSharedReading(): Promise<boolean> {
-    const cached = await this.fetchSharedReading();
-    if (!cached) return false;
-    this.paintEvents(cached.events, cached.savedAt);
-    if (cached.stats) this.paintStats(cached.stats);
-    return true;
-  }
-
   private async refresh(): Promise<void> {
     const config = this.config;
     if (!config) return;
+    // Con la API caída, reaplicar filtros al instante sobre la copia local
+    if (this.apiFailed() && this.catalog) this.applyOfflineView();
     try {
       const qs = this.queryParams();
       const url =
@@ -1111,13 +1335,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
       let stats: StatsResponse | null = null;
       if (config.mode === 'api') stats = await this.loadStats(config, headers, qs);
-      void this.publishReading(data, stats);
+      if (config.mode === 'api') void this.syncSharedCatalog(config, headers, data, stats);
+      else this.rememberCatalog(data, stats, Date.now());
     } catch {
       if (!this.destroyed) {
         this.apiFailed.set(true);
         this.status.set('Sin respuesta');
-        // Sin datos en memoria (otro PC o recarga con el túnel caído): copia en Netlify
-        if (!this.eventRows().length) await this.showSharedReading();
+        if (!this.catalog) await this.loadSharedCatalog();
+        this.applyOfflineView();
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
@@ -1159,6 +1384,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     clearTimeout(this.timer);
+    clearInterval(this.clockTimer);
     cancelAnimationFrame(this.frame);
     this.controller.abort();
     window.removeEventListener('resize', this.onResize);
