@@ -1420,12 +1420,12 @@ tbody tr.go:hover .where span {
 
   /* ══════════════════════════════════════════════
      ALTURAS IDÉNTICAS POR PARES EN MÓVIL:
-     - Estado y Filtros: Misma altura justa sin espacio sobrante (252px)
+     - Estado y Filtros: Misma altura con espacio superior e inferior equilibrados (270px)
      - Stats y Eventos: Misma altura (370px, respetando el tamaño natural de Stats)
      ══════════════════════════════════════════════ */
   .panel-estado,
   .panel-filtros {
-    height: 252px !important;
+    height: 270px !important;
   }
 
   .panel-stats,
@@ -1437,8 +1437,8 @@ tbody tr.go:hover .where span {
      ADAPTACIÓN ESPECÍFICA: PANEL ESTADO
      ══════════════════════════════════════════════ */
   .panel-estado .body {
-    padding: 6px 14px 10px !important;
-    gap: 6px !important;
+    padding: 8px 14px 16px !important;
+    gap: 8px !important;
     overflow: hidden !important;
   }
 
@@ -1544,14 +1544,14 @@ tbody tr.go:hover .where span {
      ══════════════════════════════════════════════ */
   .panel-filtros .body {
     overflow: hidden !important;
-    padding: 6px 14px 10px !important;
-    gap: 6px !important;
+    padding: 8px 14px 16px !important;
+    gap: 8px !important;
   }
 
   .panel-filtros .fields {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 5px 10px !important;
+    gap: 6px 10px !important;
   }
 
   /* Fila 1: Desde y Hasta (2 columnas simétricas) */
@@ -1589,16 +1589,16 @@ tbody tr.go:hover .where span {
     border: 1px solid rgba(160, 205, 255, 0.2) !important;
   }
 
-  /* Botones Limpiar y Aplicar: 50% / 50% perfectamente simétricos */
+  /* Botones Limpiar y Aplicar: 50% / 50% perfectamente simétricos con margen proporcionado */
   .panel-filtros .actions {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
-    margin-top: 6px !important;
+    margin-top: 8px !important;
   }
 
   .panel-filtros .actions button {
-    height: 34px !important;
+    height: 36px !important;
     font-size: 12px !important;
     font-weight: 700 !important;
     border-radius: 10px !important;
