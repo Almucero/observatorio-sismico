@@ -2,61 +2,133 @@
 
 USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 
-Repo: https://github.com/Almucero/observatorio-sismico  
-Panel (Netlify): https://observatorio-sismico-almucero.netlify.app  
-API (ngrok, con Compose + túnel activos): https://jasmine-unpainted-oat.ngrok-free.dev
+- **Repositorio:** https://github.com/Almucero/observatorio-sismico  
+- **Panel público (Netlify):** https://observatorio-sismico-almucero.netlify.app  
+- **API pública:** Expuesta vía túnel HTTPS (ngrok o Cloudflare) hacia el puerto `8000` local.
 
-## Requisitos
+## Documentación del proyecto
 
-Índice: [`docs/README.md`](docs/README.md) · Norma: [`docs/requisitos/`](docs/requisitos/README.md)  
-Memoria: [`docs/memoria.md`](docs/memoria.md) · Evidencias: [`docs/evidencias/`](docs/evidencias/)  
-Despliegue: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) · Checklist: [`docs/entregables-checklist.md`](docs/entregables-checklist.md)
+- Índice: [`docs/README.md`](docs/README.md) · Norma: [`docs/requisitos/`](docs/requisitos/README.md)  
+- Memoria: [`docs/memoria.md`](docs/memoria.md) · Evidencias: [`docs/evidencias/`](docs/evidencias/)  
+- Despliegue: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) · Checklist: [`docs/entregables-checklist.md`](docs/entregables-checklist.md)
 
-## Arranque rápido (backend)
+---
 
-1. Copia `.env.example` a `.env` y cambia la contraseña si quieres.
-2. Arranca los cinco servicios:
+## 1. Puesta en marcha desde cero (PC nuevo)
 
-```bash
-docker compose up --build -d
-```
+### Requisitos previos en el sistema
+- **Docker Desktop** (con soporte WSL2 activado en Windows).
+- **Git**.
+- **Node.js** (v18+) y `npm` (si se va a compilar o servir el frontend Angular en local).
+- **ngrok** (instalable con `winget install ngrok.ngrok` o desde [ngrok.com](https://ngrok.com/download)).
+  - *(Alternativa si la operadora bloquea ngrok: `cloudflared`)*.
 
-3. API: http://127.0.0.1:8000/api/salud · Eventos: `/api/eventos` · Stats: `/api/estadisticas`
+### Paso a paso inicial
 
-```bash
-docker compose logs -f producer consumer api
-```
+1. **Clonar el repositorio:**
+   ```bash
+   git clone https://github.com/Almucero/observatorio-sismico.git
+   cd observatorio-sismico
+   ```
 
-Datos: volumen Docker `pgdata` (sobrevive a reinicios). Parar: `docker compose down` (sin `-v` conserva PG).
+2. **Configurar variables de entorno (`.env`):**
+   Copia el archivo de ejemplo:
+   ```bash
+   cp .env.example .env
+   ```
+   Revisa que `CORS_ORIGINS` incluya los dominios permitidos (por ejemplo `http://localhost:4200` y tu URL de Netlify). Si usas ngrok, añade tu token en `NGROK_AUTHTOKEN`.
 
-### Fuentes adicionales (ampliación opcional)
+3. **Construir y levantar los contenedores del backend:**
+   Con Docker Desktop abierto:
+   ```bash
+   docker compose up --build -d
+   ```
+   Levantará 5 servicios interconectados en red Docker: `kafka`, `postgres`, `producer`, `consumer` y `api`.
+   - *Verificar estado:* `docker compose ps` (todos deben figurar como `healthy` o `running`).
+   - *Seguir logs en tiempo real:* `docker compose logs -f producer consumer api`
+   - *Probar API en local:* [http://127.0.0.1:8000/api/salud](http://127.0.0.1:8000/api/salud)
+
+4. **Levantar el túnel HTTPS (exponer `:8000` a Internet):**
+   - **Opción A (Requisito canónico del proyecto - ngrok):**
+     1. Vincula tu cuenta una única vez: `ngrok config add-authtoken TU_TOKEN`
+     2. Inicia el túnel:
+        ```powershell
+        ngrok http 8000
+        ```
+     3. Copia la URL HTTPS asignada (`https://....ngrok-free.dev` o `.ngrok-free.app`).
+   - **Opción B (Alternativa de contingencia - Cloudflare Tunnel):**
+     *Útil si tu operadora de red fija (Movistar, Vodafone, Orange, Digi...) bloquea por DPI/DNS los subdominios de ngrok con `ERR_CONNECTION_CLOSED`.*
+     ```powershell
+     cloudflared tunnel --url http://127.0.0.1:8000
+     ```
+     Copia la URL generada (`https://....trycloudflare.com`).
+
+5. **Configurar el frontend:**
+   Abre `frontend/public/config.json` e introduce la URL HTTPS de tu túnel:
+   ```json
+   {
+     "mode": "api",
+     "apiUrl": "https://TU-URL-DEL-TUNEL",
+     "refreshMs": 60000,
+     "skipNgrokWarning": true,
+     "dataMode": "live"
+   }
+   ```
+   *(Para pruebas estrictamente en local en el mismo ordenador puedes indicar `"apiUrl": "http://127.0.0.1:8000"`).*
+
+6. **Iniciar el panel frontend:**
+   - **En local:**
+     ```bash
+     cd frontend
+     npm ci
+     npm start
+     ```
+     Abre en el navegador: [http://localhost:4200](http://localhost:4200)
+   - **En producción (Netlify):**
+     Sube los cambios a Git; Netlify re-desplegará automáticamente:
+     ```bash
+     git add public/config.json
+     git commit -m "Actualizar apiUrl del túnel"
+     git push origin main
+     ```
+
+---
+
+## 2. Puesta en marcha habitual (PC donde ya está configurado)
+
+Para sesiones diarias de trabajo o demostraciones una vez instalado:
+
+1. **Abrir Docker Desktop.**
+2. **Arrancar los contenedores:**
+   ```bash
+   docker compose up -d
+   ```
+3. **Iniciar el túnel HTTPS (en una ventana de terminal aparte):**
+   ```powershell
+   ngrok http 8000
+   # O en su defecto: cloudflared tunnel --url http://127.0.0.1:8000
+   ```
+4. **Si cambió la URL del túnel:** actualiza `frontend/public/config.json` y haz commit/push a Netlify o reinicia el servidor local.
+5. **Frontend local (si no usas Netlify):**
+   ```bash
+   cd frontend
+   npm start
+   ```
+6. **Detener el stack al finalizar:**
+   ```bash
+   docker compose down
+   ```
+   *(Los datos procesados se conservan intactos en el volumen Docker persistente `pgdata`).*
+
+---
+
+## Fuentes adicionales (ampliación opcional)
 
 El productor puede consultar también GeoNet, NRCan, USP, KAGSR, EMSC e ISC para cubrir zonas que el feed de USGS deja casi vacías; el consumidor unifica los avisos del mismo terremoto (memoria §10). Por defecto el panel muestra solo USGS. Con `EXTRA_SOURCES=` vacío en `.env` el productor solo consulta USGS.
 
 Una base creada antes de esta ampliación necesita la migración una vez (las nuevas la aplican solas):
-
 ```bash
 docker compose exec -T postgres sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB' < sql/04_fuentes.sql
-```
-
-## Frontend
-
-```bash
-cd frontend
-npm ci
-npm start
-```
-
-`frontend/public/config.json`:
-
-```json
-{
-  "mode": "api",
-  "apiUrl": "http://127.0.0.1:8000",
-  "refreshMs": 60000,
-  "skipNgrokWarning": true,
-  "dataMode": "live"
-}
 ```
 
 ## Histórico y replay
