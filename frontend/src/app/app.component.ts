@@ -510,6 +510,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   };
 
   ngAfterViewInit(): void {
+    if (typeof matchMedia !== 'undefined' && matchMedia('(max-width: 900px)').matches) {
+      this.collapsed.set({ estado: false, filtros: true, stats: true, eventos: false });
+    }
     this.zone.runOutsideAngular(() => this.createGlobe());
     void this.loadCountries();
     void this.bootstrap();
@@ -904,17 +907,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   // Una fuente va con retraso si lleva tres intervalos de consulta sin una descarga correcta
   private staleText(chosen: SourceInfo[]): string {
     const now = this.clock();
-    const names = (list: SourceInfo[]) => LIST.format(list.map((s) => s.nombre));
     const age = (s: SourceInfo) => now - (s.last_ingestion ?? 0);
     const missing = chosen.filter((s) => typeof s.last_ingestion !== 'number');
-    if (missing.length) return `No consta ninguna ingesta de ${names(missing)}.`;
+    if (missing.length) return 'No consta ninguna ingesta de las fuentes seleccionadas.';
     const late = chosen.filter(
       (s) => age(s) > Math.max(180000, this.refreshSeconds() * 3000, s.intervalo_s * 3000)
     );
     if (!late.length) return '';
     const minutes = Math.max(1, Math.round(Math.max(...late.map(age)) / 60000));
-    const who = chosen.length > 1 ? ` de ${names(late)}` : '';
-    return `Datos desactualizados${who}: la última ingesta fue hace ${minutes} min.`;
+    return `Datos desactualizados: la última ingesta fue hace ${minutes} min.`;
   }
 
   private isBaseQuery(): boolean {
