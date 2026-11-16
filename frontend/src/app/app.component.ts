@@ -74,6 +74,11 @@ type Config = {
   skipNgrokWarning: boolean;
   dataMode?: 'live' | 'replay';
 };
+type CachedReading = {
+  savedAt: number;
+  events: Events;
+  stats: StatsResponse | null;
+};
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
 type Band = { band: string; label: string; about: string; color?: string };
@@ -147,6 +152,7 @@ const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 2000;
 const FLY_MS = 1800;
 const FLY_ALTITUDE = 0.42;
+const CACHE_KEY = 'observatorio:ultima-lectura';
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
 const USGS = 'usgs';
@@ -396,7 +402,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   });
   readonly warnings = computed(() => {
     const list: string[] = [];
-    if (this.apiFailed()) list.push('La API o el túnel no responden. Se mantiene la última lectura correcta.');
+    if (this.apiFailed()) {
+      list.push(
+        this.eventRows().length
+          ? 'La API o el túnel no responden. Se muestra la última lectura correcta.'
+          : 'La API o el túnel no responden.'
+      );
+    }
     if (this.staleWarning()) list.push(this.staleWarning());
     if (this.truncated()) {
       list.push(`Respuesta truncada: se muestran ${this.count()} de ${this.total()} terremotos.`);
@@ -412,7 +424,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     hour: '2-digit',
     minute: '2-digit',
   });
-  private readonly disc = new CircleGeometry(1, 48);
+  private readonly disc = new CircleGeometry(1, 24);
+  private frameTick = 0;
   private readonly dotMaterials = new Map<string, MeshBasicMaterial>();
   private waveTexture?: CanvasTexture;
 
@@ -557,6 +570,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     window.addEventListener('pointercancel', this.onPointerUp);
 
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
+    this.globe.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.resizeGlobe();
     window.addEventListener('resize', this.onResize);
     this.frame = requestAnimationFrame(this.animate);
@@ -646,6 +660,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const halfFov = Math.tan((camera.fov * Math.PI) / 360);
     const now = performance.now();
     const time = now / 1000;
+    this.frameTick++;
     // El giro solo se detiene al pulsar o arrastrar y con el ratón sobre un terremoto.
     // El globo recuerda la última posición del ratón, así que fuera del lienzo no cuenta
     const onQuake = this.hovering && this.pointerOver;
@@ -654,25 +669,40 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     controls.zoomToCursor =
       Math.abs(camera.position.y) < camera.position.length() * POLAR_ZOOM_LIMIT;
     this.animateGlow(time, altitude, halfFov);
-    this.animateQuakes(time, altitude, halfFov);
-    this.placeLabels(altitude, camera);
+    // Con muchos puntos o al arrastrar, se anima menos a menudo para no trabar el hilo
+    const busy = this.dragging || this.points.length > 220;
+    if (!busy || this.frameTick % 2 === 0) {
+      this.animateQuakes(time, altitude, halfFov, !busy || this.frameTick % 4 === 0);
+    }
+    if (!this.dragging) this.placeLabels(altitude, camera);
   };
 
   // Radio en píxeles casi constante: grandes de lejos y algo menores al acercar
-  private animateQuakes(time: number, altitude: number, halfFov: number): void {
+  private animateQuakes(
+    time: number,
+    altitude: number,
+    halfFov: number,
+    animateWaves: boolean
+  ): void {
     const unitsPerPx =
       (2 * Math.min(altitude, 2.6) * GLOBE_RADIUS * halfFov) / this.viewportHeight;
     const farness = Math.max(0, Math.min(1, (altitude - 0.2) / 2));
     const basePx = 5 + 4 * farness;
+    const showWaves = animateWaves && altitude < 1.35 && this.points.length <= 260;
     for (const point of this.points) {
       const node = point.node;
       if (!node) continue;
       const radius = point.baseSize * basePx * unitsPerPx;
       const beat = 1 + 0.14 * Math.sin(time * 3 + point.phase);
       node.core.scale.setScalar((radius * beat) / DOT_EDGE);
-      const progress = (time / 2.4 + point.phase) % 1;
-      node.wave.scale.setScalar((radius * (1 + 2.2 * progress)) / WAVE_EDGE);
-      node.wave.material.opacity = 0.9 * (1 - progress) ** 2;
+      if (showWaves) {
+        const progress = (time / 2.4 + point.phase) % 1;
+        node.wave.visible = true;
+        node.wave.scale.setScalar((radius * (1 + 2.2 * progress)) / WAVE_EDGE);
+        node.wave.material.opacity = 0.9 * (1 - progress) ** 2;
+      } else if (node.wave.visible) {
+        node.wave.visible = false;
+      }
     }
   }
 
@@ -878,6 +908,141 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return hash / 1000;
   }
 
+  private saveReading(events: Events, stats: StatsResponse | null): void {
+    try {
+      const reading: CachedReading = { savedAt: Date.now(), events, stats };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
+    } catch {
+      /* sin espacio o modo privado */
+    }
+  }
+
+  private loadReading(): CachedReading | null {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const reading = JSON.parse(raw) as CachedReading;
+      if (reading?.events?.type !== 'FeatureCollection' || !Array.isArray(reading.events.features)) {
+        return null;
+      }
+      return reading;
+    } catch {
+      return null;
+    }
+  }
+
+  // Pinta mapa, tabla y metadatos a partir de una FeatureCollection (viva o en caché)
+  private paintEvents(data: Events, readAt: number): void {
+    const sources = data.metadata?.fuentes ?? [
+      { ...USGS_SOURCE, last_ingestion: data.metadata?.last_ingestion ?? null },
+    ];
+    this.sources.set(sources);
+    const points: GlobePoint[] = [];
+    const rows: EventRow[] = [];
+    let omitted = 0;
+    for (const feature of data.features) {
+      const p = feature.properties;
+      const c = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : [];
+      const [lon, lat, rawDepth] = c;
+      if (
+        !p ||
+        !Number.isFinite(lon) ||
+        !Number.isFinite(lat) ||
+        Math.abs(lon) > 180 ||
+        Math.abs(lat) > 90
+      ) {
+        omitted++;
+        continue;
+      }
+      const id = String(feature.id ?? 'ND');
+      const magnitude = typeof p.mag === 'number' && Number.isFinite(p.mag) ? p.mag : null;
+      const depth = typeof rawDepth === 'number' && Number.isFinite(rawDepth) ? rawDepth : null;
+      const row: EventRow = {
+        id,
+        place: p.place ?? 'Sin descripción',
+        mag: magnitude === null ? NO_DATA : magnitude.toFixed(1),
+        magValue: magnitude,
+        magColor: magColor(magnitude),
+        depth: depth === null ? NO_DATA : `${Math.round(depth)} km`,
+        depthKm: depth,
+        color: this.depthColor(depth),
+        time: this.date(p.time),
+        timeMs: typeof p.time === 'number' && Number.isFinite(p.time) ? p.time : 0,
+        country: p.country_name ?? 'Sin país asignado',
+        source: this.sourceName(p.source),
+        others: (p.otras_fuentes ?? []).map((sid) => this.sourceName(sid)).join(', '),
+        lat,
+        lng: lon,
+      };
+      rows.push(row);
+      points.push({
+        lat,
+        lng: lon,
+        baseSize:
+          magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
+        color: row.color,
+        label: this.quakeCard(row),
+        phase: this.phaseOf(id),
+      });
+    }
+    this.points = points;
+    this.globe?.objectsData(points);
+    this.count.set(points.length);
+    this.total.set(data.metadata?.total ?? points.length);
+    this.omitted.set(omitted);
+    this.eventRows.set(rows.slice(0, MAX_TABLE_ROWS));
+    this.truncated.set(Boolean(data.metadata?.truncated));
+    this.lastRead.set(this.date(readAt));
+    this.generated.set(this.date(data.metadata?.generated));
+    this.staleWarning.set(this.staleText(sources.filter((item) => item.seleccionada)));
+  }
+
+  private paintStats(data: StatsResponse): void {
+    const summary = data.resumen ?? {};
+    const total = summary.total ?? 0;
+    const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
+    const comparable = data.comparacion_historica?.referencia_2025?.filtros_equivalentes ?? true;
+    const hasRef = typeof ref === 'number';
+    const shown = LIST.format(
+      (data.por_fuente ?? []).map((row) => `${this.sourceName(row.source)} (${row.count})`)
+    );
+    const mixed = (data.filtros?.source ?? USGS) !== USGS && shown;
+    const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
+      label: row.country_name,
+      about:
+        row.country_id === 'SIN_PAIS'
+          ? 'Sin país asignado (en el mar o fuera de cualquier frontera)'
+          : row.country_name,
+      count: row.count,
+    }));
+    this.stats.set({
+      total: String(total),
+      lastHour: String(summary.ultima_hora ?? 0),
+      dailyAvg: typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
+      ref2025: hasRef ? ref.toFixed(1) : '—',
+      refLabel: comparable || !hasRef ? 'Media 2025' : '2025 · M≥4',
+      totalTip: mixed ? `${TOTAL_TIP}. Los datos mostrados son de ${shown}.` : `${TOTAL_TIP}.`,
+      dailyTip: `Terremotos del periodo divididos entre lo que dura en días: ${DECIMAL.format(data.periodo?.duracion_dias ?? 1)}.`,
+      refTip: comparable ? REF_TIP : hasRef ? REF_LIMITED : REF_MISSING,
+      comparable,
+      avisos: data.avisos ?? [],
+      countries: toBars(countries, total),
+      mag: bandBars(MAG_BANDS, data.distribuciones?.magnitud, total),
+      depth: bandBars(DEPTH_BANDS, data.distribuciones?.profundidad_km, total),
+    });
+    const start = Date.parse(data.periodo?.start ?? '');
+    const end = Date.parse(data.periodo?.end ?? '');
+    this.period.set(`${this.date(start)} – ${this.date(end)}`);
+  }
+
+  private showCachedReading(): boolean {
+    const cached = this.loadReading();
+    if (!cached) return false;
+    this.paintEvents(cached.events, cached.savedAt);
+    if (cached.stats) this.paintStats(cached.stats);
+    return true;
+  }
+
   private async refresh(): Promise<void> {
     const config = this.config;
     if (!config) return;
@@ -897,76 +1062,18 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         throw new Error('Se esperaba FeatureCollection');
       }
 
-      const sources = data.metadata?.fuentes ?? [
-        { ...USGS_SOURCE, last_ingestion: data.metadata?.last_ingestion ?? null },
-      ];
-      this.sources.set(sources);
-      const points: GlobePoint[] = [];
-      const rows: EventRow[] = [];
-      let omitted = 0;
-      for (const feature of data.features) {
-        const p = feature.properties;
-        const c = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : [];
-        const [lon, lat, rawDepth] = c;
-        if (
-          !p ||
-          !Number.isFinite(lon) ||
-          !Number.isFinite(lat) ||
-          Math.abs(lon) > 180 ||
-          Math.abs(lat) > 90
-        ) {
-          omitted++;
-          continue;
-        }
-        const id = String(feature.id ?? 'ND');
-        const magnitude = typeof p.mag === 'number' && Number.isFinite(p.mag) ? p.mag : null;
-        const depth = typeof rawDepth === 'number' && Number.isFinite(rawDepth) ? rawDepth : null;
-        const row: EventRow = {
-          id,
-          place: p.place ?? 'Sin descripción',
-          mag: magnitude === null ? NO_DATA : magnitude.toFixed(1),
-          magValue: magnitude,
-          magColor: magColor(magnitude),
-          depth: depth === null ? NO_DATA : `${Math.round(depth)} km`,
-          depthKm: depth,
-          color: this.depthColor(depth),
-          time: this.date(p.time),
-          timeMs: typeof p.time === 'number' && Number.isFinite(p.time) ? p.time : 0,
-          country: p.country_name ?? 'Sin país asignado',
-          source: this.sourceName(p.source),
-          others: (p.otras_fuentes ?? []).map((id) => this.sourceName(id)).join(', '),
-          lat,
-          lng: lon,
-        };
-        rows.push(row);
-        points.push({
-          lat,
-          lng: lon,
-          baseSize:
-            magnitude === null ? 0.95 : Math.max(0.75, Math.min(2.1, 0.75 + (magnitude + 1) * 0.15)),
-          color: row.color,
-          label: this.quakeCard(row),
-          phase: this.phaseOf(id),
-        });
-      }
-
-      this.points = points;
-      this.globe?.objectsData(points);
-      this.count.set(points.length);
-      this.total.set(data.metadata?.total ?? points.length);
-      this.omitted.set(omitted);
-      this.eventRows.set(rows.slice(0, MAX_TABLE_ROWS));
-      this.truncated.set(Boolean(data.metadata?.truncated));
-      this.lastRead.set(this.date(Date.now()));
-      this.generated.set(this.date(data.metadata?.generated));
-      this.staleWarning.set(this.staleText(sources.filter((s) => s.seleccionada)));
+      this.paintEvents(data, Date.now());
       this.apiFailed.set(false);
       this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
-      if (config.mode === 'api') await this.loadStats(config, headers, qs);
+      let stats: StatsResponse | null = null;
+      if (config.mode === 'api') stats = await this.loadStats(config, headers, qs);
+      this.saveReading(data, stats);
     } catch {
       if (!this.destroyed) {
         this.apiFailed.set(true);
         this.status.set('Sin respuesta');
+        // Sin datos en memoria (p. ej. primera carga con la API caída): recupera la última buena
+        if (!this.eventRows().length) this.showCachedReading();
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
@@ -979,58 +1086,24 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     config: Config,
     headers: Record<string, string>,
     qs: string
-  ): Promise<void> {
+  ): Promise<StatsResponse | null> {
     if (this.truncated()) {
       this.stats.set({
         ...EMPTY_STATS,
         avisos: ['Respuesta truncada: no se calculan estadísticas globales sobre una muestra.'],
       });
-      return;
+      return null;
     }
     try {
       const data = await this.readJson<StatsResponse>(
         `${config.apiUrl.replace(/\/$/, '')}/api/estadisticas${qs}`,
         headers
       );
-      const summary = data.resumen ?? {};
-      const total = summary.total ?? 0;
-      const ref = data.comparacion_historica?.referencia_2025?.media_diaria;
-      const comparable = data.comparacion_historica?.referencia_2025?.filtros_equivalentes ?? true;
-      const hasRef = typeof ref === 'number';
-      // Con varias fuentes cada terremoto muestra los datos de una sola: se dice de cuál
-      const shown = LIST.format(
-        (data.por_fuente ?? []).map((row) => `${this.sourceName(row.source)} (${row.count})`)
-      );
-      const mixed = (data.filtros?.source ?? USGS) !== USGS && shown;
-      const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
-        label: row.country_name,
-        about:
-          row.country_id === 'SIN_PAIS'
-            ? 'Sin país asignado (en el mar o fuera de cualquier frontera)'
-            : row.country_name,
-        count: row.count,
-      }));
-      this.stats.set({
-        total: String(total),
-        lastHour: String(summary.ultima_hora ?? 0),
-        dailyAvg:
-          typeof summary.media_por_dia === 'number' ? summary.media_por_dia.toFixed(1) : '—',
-        ref2025: hasRef ? ref.toFixed(1) : '—',
-        refLabel: comparable || !hasRef ? 'Media 2025' : '2025 · M≥4',
-        totalTip: mixed ? `${TOTAL_TIP}. Los datos mostrados son de ${shown}.` : `${TOTAL_TIP}.`,
-        dailyTip: `Terremotos del periodo divididos entre lo que dura en días: ${DECIMAL.format(data.periodo?.duracion_dias ?? 1)}.`,
-        refTip: comparable ? REF_TIP : hasRef ? REF_LIMITED : REF_MISSING,
-        comparable,
-        avisos: data.avisos ?? [],
-        countries: toBars(countries, total),
-        mag: bandBars(MAG_BANDS, data.distribuciones?.magnitud, total),
-        depth: bandBars(DEPTH_BANDS, data.distribuciones?.profundidad_km, total),
-      });
-      const start = Date.parse(data.periodo?.start ?? '');
-      const end = Date.parse(data.periodo?.end ?? '');
-      this.period.set(`${this.date(start)} – ${this.date(end)}`);
+      this.paintStats(data);
+      return data;
     } catch {
       this.stats.set({ ...EMPTY_STATS, avisos: ['No se han podido cargar las estadísticas.'] });
+      return null;
     }
   }
 

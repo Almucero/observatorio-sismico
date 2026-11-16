@@ -12,9 +12,9 @@ Fecha UTC: 2026-11-15
 
 1. Se detuvo el proceso `ngrok`.
 2. `GET` a la URL pública → error (404 / no reachable).
-3. Recarga del panel Netlify → estado:  
-   **«No se pudo actualizar: se conserva la última lectura. Revisa API, túnel y CORS.»**  
-   (Sin inventar puntos nuevos.)
+3. Recarga del panel Netlify → estado **Sin respuesta** y aviso  
+   **«La API o el túnel no responden. Se muestra la última lectura correcta.»**  
+   Los puntos y estadísticas son los de la última consulta buena (guardada en el navegador).
 
 ## UP
 
