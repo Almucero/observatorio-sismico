@@ -18,7 +18,9 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  Raycaster,
   SRGBColorSpace,
+  Vector2,
   Vector3,
   type Object3D,
   type PerspectiveCamera,
@@ -153,6 +155,7 @@ const ROTATE_RESUME_MS = 2000;
 const FLY_MS = 1800;
 const FLY_ALTITUDE = 0.42;
 const SHARED_CACHE_URL = '/api/ultima-lectura';
+const HOVER_MS = 90;
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
 const USGS = 'usgs';
@@ -426,6 +429,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   });
   private readonly disc = new CircleGeometry(1, 24);
   private readonly dotMaterials = new Map<string, MeshBasicMaterial>();
+  private readonly raycaster = new Raycaster();
+  private readonly pointer = new Vector2();
   private waveTexture?: CanvasTexture;
 
   private globe?: GlobeInstance;
@@ -433,7 +438,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private timer?: ReturnType<typeof setTimeout>;
   private frame = 0;
   private dragging = false;
+  private hoveringQuake = false;
   private rotateAfter = 0;
+  private hoverCheckAt = 0;
+  private quakeCores: Mesh[] = [];
+  private quakeTipEl?: HTMLElement;
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
@@ -445,11 +454,46 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private onResize = () => this.resizeGlobe();
   private onPointerDown = () => {
     this.dragging = true;
+    this.hideQuakeTip();
   };
   private onPointerUp = () => {
     if (!this.dragging) return;
     this.dragging = false;
     this.rotateAfter = performance.now() + ROTATE_RESUME_MS;
+  };
+  private onGlobeLeave = () => this.hideQuakeTip();
+  private onGlobeMove = (event: PointerEvent) => {
+    if (this.dragging || !this.globe) {
+      this.hideQuakeTip();
+      return;
+    }
+    const now = performance.now();
+    if (now - this.hoverCheckAt < HOVER_MS) return;
+    this.hoverCheckAt = now;
+    const el = this.globeHost.nativeElement;
+    const rect = el.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.globe.camera() as PerspectiveCamera);
+    const hit = this.raycaster.intersectObjects(this.quakeCores, false)[0];
+    const point = hit?.object?.userData?.['point'] as GlobePoint | undefined;
+    if (!point) {
+      this.hideQuakeTip();
+      return;
+    }
+    this.hoveringQuake = true;
+    const tip = this.quakeTipEl;
+    if (!tip) return;
+    tip.innerHTML = point.label;
+    tip.style.display = 'block';
+    const pad = 14;
+    const width = tip.offsetWidth || 220;
+    const left =
+      event.clientX + pad + width > window.innerWidth - 8
+        ? event.clientX - width - pad
+        : event.clientX + pad;
+    tip.style.left = `${Math.max(8, left)}px`;
+    tip.style.top = `${Math.min(window.innerHeight - 8, event.clientY + pad)}px`;
   };
 
   ngAfterViewInit(): void {
@@ -540,7 +584,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .objectsData([])
       .objectAltitude(0.01)
       .objectThreeObject((d: object) => this.buildQuake(d as GlobePoint))
-      .objectLabel('label')
       .enablePointerInteraction(false)
       .htmlElementsData([])
       .htmlAltitude(LABEL_ALTITUDE)
@@ -555,8 +598,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     controls.minDistance = GLOBE_RADIUS * 1.2;
     controls.maxDistance = GLOBE_RADIUS * 6;
     el.addEventListener('pointerdown', this.onPointerDown);
+    el.addEventListener('pointermove', this.onGlobeMove, { passive: true });
+    el.addEventListener('pointerleave', this.onGlobeLeave);
     window.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('pointercancel', this.onPointerUp);
+
+    this.quakeTipEl = document.createElement('div');
+    this.quakeTipEl.className = 'float-tooltip-kap quake-hover-tip';
+    this.quakeTipEl.style.display = 'none';
+    document.body.appendChild(this.quakeTipEl);
 
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.globe.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -637,8 +687,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     wave.raycast = () => {};
     wave.renderOrder = 1;
     core.renderOrder = 2;
+    core.userData['point'] = point;
     point.node = { core, wave };
+    this.quakeCores.push(core);
     return new Group().add(wave, core);
+  }
+
+  private hideQuakeTip(): void {
+    this.hoveringQuake = false;
+    if (this.quakeTipEl) this.quakeTipEl.style.display = 'none';
   }
 
   private animate = (): void => {
@@ -649,9 +706,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const halfFov = Math.tan((camera.fov * Math.PI) / 360);
     const now = performance.now();
     const time = now / 1000;
-    // El giro solo se detiene al pulsar o arrastrar (sin raycast continuo al pasar el ratón)
+    // El giro se detiene al arrastrar o al tener el ratón sobre un terremoto
     const controls = this.globe.controls();
-    controls.autoRotate = !this.dragging && now > this.rotateAfter;
+    controls.autoRotate = !this.dragging && !this.hoveringQuake && now > this.rotateAfter;
     controls.zoomToCursor =
       Math.abs(camera.position.y) < camera.position.length() * POLAR_ZOOM_LIMIT;
     this.animateGlow(time, altitude, halfFov);
@@ -972,6 +1029,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       });
     }
     this.points = points;
+    this.quakeCores = [];
+    this.hideQuakeTip();
     this.globe?.objectsData(points);
     this.count.set(points.length);
     this.total.set(data.metadata?.total ?? points.length);
@@ -1108,6 +1167,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     window.removeEventListener('pointercancel', this.onPointerUp);
     const el = this.globeHost.nativeElement;
     el.removeEventListener('pointerdown', this.onPointerDown);
+    el.removeEventListener('pointermove', this.onGlobeMove);
+    el.removeEventListener('pointerleave', this.onGlobeLeave);
+    this.quakeTipEl?.remove();
     try {
       (this.globe as { _destructor?: () => void } | undefined)?._destructor?.();
     } catch {
