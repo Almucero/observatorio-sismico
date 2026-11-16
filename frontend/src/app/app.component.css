@@ -873,8 +873,10 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
   from { opacity: 0; }
 }
 
-/* Móvil / tablet estrecha: globo arriba y paneles a ancho completo debajo.
-   Escritorio (≥901px) conserva el layout en cuatro esquinas sin cambios. */
+/* ═══════════════════════════════════════════════════════════════
+   TABLET + MÓVIL  ≤ 900 px
+   El layout de escritorio (> 900px) no se toca en absoluto.
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
   :host {
     --panel-w: 100%;
@@ -892,12 +894,12 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
     top: 0;
     left: 0;
     width: 100%;
-    height: 42dvh;
+    height: 40dvh;
   }
 
   .aura {
     inset: auto;
-    top: 21dvh;
+    top: 20dvh;
     left: 50%;
     right: auto;
     bottom: auto;
@@ -906,9 +908,9 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
   .globe {
     position: relative;
     inset: auto;
-    flex: 0 0 42dvh;
+    flex: 0 0 40dvh;
     width: 100%;
-    height: 42dvh;
+    height: 40dvh;
   }
 
   .dock {
@@ -918,16 +920,18 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
     top: auto;
     bottom: auto;
     z-index: 500;
+    display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
     padding: 0 10px;
   }
 
   .dock.top {
     flex: 0 0 auto;
-    padding-top: 8px;
+    padding-top: 10px;
+    z-index: 501;
   }
 
   .dock.bottom {
@@ -935,15 +939,27 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
     min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    padding-bottom: 12px;
+    padding-bottom: 14px;
     -webkit-overflow-scrolling: touch;
   }
 
   .panel {
     width: 100%;
     max-width: none;
+    border-radius: 16px;
   }
 
+  .bar {
+    min-height: 44px;
+  }
+
+  .fold {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  /* Sin alturas fijas en tablet/móvil */
   .dock.top .body,
   .dock.bottom .body {
     height: auto;
@@ -951,9 +967,35 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
   }
 
   .dock.bottom .panel .body {
-    max-height: min(48dvh, 380px);
+    max-height: min(50dvh, 420px);
   }
 
+  .body {
+    gap: 14px;
+    padding: 12px 14px 16px;
+  }
+
+  /* Tiles de estadísticas: 2 × 2 en lugar de 4 en fila */
+  .dock.bottom .tiles {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .tile {
+    padding: 10px 10px 10px 12px;
+  }
+
+  .tile b {
+    font-size: 20px;
+    line-height: 24px;
+  }
+
+  .tile span {
+    font-size: 11px;
+  }
+
+  /* Alertas en flujo normal (no absolutas) */
   .alerts {
     position: static;
     margin-top: 0;
@@ -961,9 +1003,11 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
   }
 
   .alerts p {
-    font-size: 10.5px;
+    font-size: 11px;
+    padding: 8px 12px;
   }
 
+  /* Filtros: 2 columnas en tablet */
   .fields {
     grid-template-columns: 1fr 1fr;
   }
@@ -977,21 +1021,41 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
     grid-column: 1 / -1;
   }
 
+  .fields input {
+    height: 36px;
+    font-size: 12.5px;
+    border-radius: 10px;
+  }
+
+  .actions button {
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  /* Gráficas en columna única */
   .charts {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 14px;
   }
 
   .histogram {
-    height: 84px;
+    height: 90px;
   }
 
   .tools {
     grid-template-columns: minmax(0, 1fr) minmax(110px, 36%);
   }
 
+  .tools input {
+    height: 36px;
+    font-size: 12.5px;
+    border-radius: 10px;
+  }
+
+  td { padding: 7px 6px; }
+
   .tip {
-    max-width: min(256px, calc(100vw - 24px));
+    max-width: min(260px, calc(100vw - 24px));
   }
 
   .hint-pop {
@@ -999,23 +1063,213 @@ tbody tr.go:hover .where span { color: #7dd3fc; }
     right: -8px;
     width: min(250px, calc(100vw - 36px));
   }
+
+  /* La barra de pestañas es solo para teléfono */
+  .mobile-nav {
+    display: none;
+  }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   PANTALLA BAJA: landscape phone o tablet compacto  ≤ 900 × 560
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) and (max-height: 560px) {
-  .stars {
-    height: 34dvh;
+  .stars  { height: 32dvh; }
+  .aura   { top: 16dvh; }
+  .globe  { flex-basis: 32dvh; height: 32dvh; }
+  .dock.bottom .panel .body { max-height: min(44dvh, 300px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TELÉFONO ≤ 600 px — una sola pestaña visible a la vez
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  :host { font-size: 13px; }
+
+  /* Globo algo más compacto para ceder espacio al panel */
+  .globe  { flex-basis: 36dvh; height: 36dvh; }
+  .stars  { height: 36dvh; }
+  .aura   { top: 18dvh; }
+
+  /* ── Docks: ocultos por defecto, se muestran por pestaña ── */
+  .dock.top,
+  .dock.bottom {
+    display: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
-  .aura {
-    top: 17dvh;
+  .stage[data-mobile-tab="estado"] .dock.top,
+  .stage[data-mobile-tab="filtros"] .dock.top {
+    display: flex;
   }
 
-  .globe {
-    flex-basis: 34dvh;
-    height: 34dvh;
+  .stage[data-mobile-tab="stats"] .dock.bottom,
+  .stage[data-mobile-tab="eventos"] .dock.bottom {
+    display: flex;
   }
 
-  .dock.bottom .panel .body {
-    max-height: min(42dvh, 280px);
+  /* ── Ocultar el panel inactivo dentro del dock visible ── */
+  .stage[data-mobile-tab="estado"]  .panel-filtros,
+  .stage[data-mobile-tab="filtros"] .panel-estado,
+  .stage[data-mobile-tab="stats"]   .panel-eventos,
+  .stage[data-mobile-tab="eventos"] .panel-stats {
+    display: none;
   }
+
+  /* ── Panel activo: ocupa todo el espacio disponible ── */
+  .stage[data-mobile-tab="estado"]  .panel-estado,
+  .stage[data-mobile-tab="filtros"] .panel-filtros,
+  .stage[data-mobile-tab="stats"]   .panel-stats,
+  .stage[data-mobile-tab="eventos"] .panel-eventos {
+    display: flex;
+    flex: 1;
+    border-radius: 20px 20px 12px 12px;
+  }
+
+  /* ── Cadena flex para que el contenido llene el panel ── */
+  .fold-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .fold-inner {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .body {
+    flex: 1;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto;
+  }
+
+  /* ── Botón de pliegue: oculto (el tab nav lo sustituye) ── */
+  .fold {
+    display: none;
+  }
+
+  /* ── Tiles: en Estado (3) se mantiene en fila; en Stats (4) → 2×2 ── */
+  .tiles {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .dock.top .tiles {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-columns: unset;
+  }
+
+  /* ── Filtros: una sola columna ── */
+  .fields {
+    grid-template-columns: 1fr;
+  }
+
+  .fields label,
+  .fields .field,
+  .fields label.wide {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Inputs y botones: área de toque ≥ 44 px ── */
+  .fields input,
+  .tools input {
+    height: 42px;
+    font-size: 13.5px;
+    border-radius: 11px;
+  }
+
+  .actions button {
+    height: 42px;
+    font-size: 13px;
+    border-radius: 11px;
+  }
+
+  /* ── Tabla ── */
+  tr { grid-template-columns: 46px minmax(0, 1fr) 72px; }
+  td { padding: 9px 6px; }
+
+  /* ── Tipografía ── */
+  h2 { font-size: 13px; }
+  .eyebrow { font-size: 10.5px; }
+
+  .tip {
+    max-width: min(260px, calc(100vw - 20px));
+  }
+
+  /* ══════════════════════════════════════════════
+     Barra de navegación por pestañas (bottom nav)
+     ══════════════════════════════════════════════ */
+  .mobile-nav {
+    display: flex;
+    flex: 0 0 54px;
+    align-items: stretch;
+    background:
+      linear-gradient(160deg, rgba(120, 180, 255, 0.08), transparent 60%),
+      rgba(5, 12, 28, 0.94);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-top: 1px solid rgba(160, 205, 255, 0.14);
+    padding: 0 6px;
+    gap: 2px;
+    /* Respetar la zona segura del iOS (home indicator) */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font: 10px/1.2 "Segoe UI", system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .mobile-nav button svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobile-nav button.active {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+  }
+
+  .mobile-nav button.active svg {
+    stroke: #38bdf8;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TELÉFONO PEQUEÑO / landscape  ≤ 600 × 500
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) and (max-height: 500px) {
+  .globe  { flex-basis: 28dvh; height: 28dvh; }
+  .stars  { height: 28dvh; }
+  .aura   { top: 14dvh; }
+  .mobile-nav { flex-basis: 48px; }
 }

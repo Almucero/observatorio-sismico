@@ -335,6 +335,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly eventSearch = signal('');
   readonly eventSort = signal('time-desc');
   readonly eventSorts = EVENT_SORTS;
+  readonly mobileTab = signal<PanelId>('estado');
   readonly collapsed = signal<Record<PanelId, boolean>>({
     estado: false,
     filtros: false,
@@ -510,8 +511,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   };
 
   ngAfterViewInit(): void {
-    if (typeof matchMedia !== 'undefined' && matchMedia('(max-width: 900px)').matches) {
-      this.collapsed.set({ estado: false, filtros: true, stats: true, eventos: false });
+    if (typeof matchMedia !== 'undefined') {
+      if (matchMedia('(max-width: 600px)').matches) {
+        // Teléfono: tab nav activa, todos los paneles siempre expandidos
+        this.collapsed.set({ estado: false, filtros: false, stats: false, eventos: false });
+      } else if (matchMedia('(max-width: 900px)').matches) {
+        // Tablet: apilados, colapsar filtros y estadísticas por defecto
+        this.collapsed.set({ estado: false, filtros: true, stats: true, eventos: false });
+      }
     }
     this.zone.runOutsideAngular(() => this.createGlobe());
     void this.loadCountries();
@@ -553,6 +560,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.globe?.pointOfView({ lat: row.lat, lng: row.lng, altitude: FLY_ALTITUDE }, FLY_MS);
     });
+  }
+
+  setMobileTab(tab: PanelId): void {
+    this.mobileTab.set(tab);
+    // Asegurar que el panel de destino está expandido al cambiar de pestaña
+    this.collapsed.update(s => ({ ...s, [tab]: false }));
   }
 
   clearFilters(): void {
