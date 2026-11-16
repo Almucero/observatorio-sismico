@@ -780,7 +780,7 @@ tbody tr:hover { background-color: rgba(56, 189, 248, 0.1); }
 
 .tools {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 108px;
+  grid-template-columns: minmax(0, 1fr) 118px;
   gap: 8px;
   flex-shrink: 0;
 }

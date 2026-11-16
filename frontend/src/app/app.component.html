@@ -291,10 +291,10 @@
                 aria-label="Buscar en la lista de eventos"
               />
               <app-dropdown
-                label="Filtro de magnitud"
-                [options]="eventFilters"
-                [value]="eventFilter()"
-                (valueChange)="eventFilter.set($event)"
+                label="Orden de la lista"
+                [options]="eventSorts"
+                [value]="eventSort()"
+                (valueChange)="eventSort.set($event)"
               />
             </div>
             <table>

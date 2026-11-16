@@ -102,8 +102,10 @@ type EventRow = {
   magValue: number | null;
   magColor: string;
   depth: string;
+  depthKm: number | null;
   color: string;
   time: string;
+  timeMs: number;
   country: string;
   source: string;
   others: string;
@@ -164,14 +166,13 @@ const ALL_SOURCES_OPTION: DropdownOption = {
   hint: 'Cada terremoto una sola vez, aunque lo comuniquen varias',
 };
 const ALL_COUNTRIES_OPTION: DropdownOption = { value: '', label: 'Todos los países', short: 'Todos' };
-const EVENT_FILTERS: DropdownOption[] = [
-  { value: '', label: 'Todas las magnitudes', short: 'Todas' },
-  { value: '2', label: 'Magnitud ≥ 2', short: '≥ 2' },
-  { value: '3', label: 'Magnitud ≥ 3', short: '≥ 3' },
-  { value: '4', label: 'Magnitud ≥ 4', short: '≥ 4' },
-  { value: '5', label: 'Magnitud ≥ 5', short: '≥ 5' },
-  { value: '6', label: 'Magnitud ≥ 6', short: '≥ 6' },
-  { value: 'nd', label: 'Sin magnitud', short: 'S/D' },
+const EVENT_SORTS: DropdownOption[] = [
+  { value: 'time-desc', label: 'Más recientes primero', short: 'Recientes' },
+  { value: 'time-asc', label: 'Más antiguos primero', short: 'Antiguos' },
+  { value: 'mag-desc', label: 'Mayor magnitud primero', short: 'Mag. ↓' },
+  { value: 'mag-asc', label: 'Menor magnitud primero', short: 'Mag. ↑' },
+  { value: 'depth-asc', label: 'Más superficiales primero', short: 'Prof. ↑' },
+  { value: 'depth-desc', label: 'Más profundos primero', short: 'Prof. ↓' },
 ];
 const STALE_NOTE = 'Si se retrasa, lo que ves puede estar desactualizado.';
 const USGS_INGESTION_TIP = `Última vez que el sistema descargó terremotos de USGS, el servicio geológico de EE. UU. y fuente principal de los datos. ${STALE_NOTE}`;
@@ -323,8 +324,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly stats = signal<StatsView>(EMPTY_STATS);
   readonly eventRows = signal<EventRow[]>([]);
   readonly eventSearch = signal('');
-  readonly eventFilter = signal('');
-  readonly eventFilters = EVENT_FILTERS;
+  readonly eventSort = signal('time-desc');
+  readonly eventSorts = EVENT_SORTS;
   readonly collapsed = signal<Record<PanelId, boolean>>({
     estado: false,
     filtros: false,
@@ -339,15 +340,32 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   });
   readonly visibleEvents = computed(() => {
     const query = plain(this.eventSearch());
-    const filter = this.eventFilter();
-    return this.eventRows().filter((row) => {
-      if (filter === 'nd' && row.magValue !== null) return false;
-      if (filter && filter !== 'nd' && (row.magValue === null || row.magValue < Number(filter))) {
-        return false;
-      }
-      if (!query) return true;
-      return plain(`${row.place} ${row.country} ${row.id} ${row.source}`).includes(query);
-    });
+    const rows = this.eventRows().filter(
+      (row) =>
+        !query || plain(`${row.place} ${row.country} ${row.id} ${row.source}`).includes(query)
+    );
+    const rank = (value: number | null, missing: number) => (value === null ? missing : value);
+    const sorted = [...rows];
+    switch (this.eventSort()) {
+      case 'time-asc':
+        sorted.sort((a, b) => a.timeMs - b.timeMs);
+        break;
+      case 'mag-desc':
+        sorted.sort((a, b) => rank(b.magValue, -1) - rank(a.magValue, -1));
+        break;
+      case 'mag-asc':
+        sorted.sort((a, b) => rank(a.magValue, 99) - rank(b.magValue, 99));
+        break;
+      case 'depth-asc':
+        sorted.sort((a, b) => rank(a.depthKm, 1e9) - rank(b.depthKm, 1e9));
+        break;
+      case 'depth-desc':
+        sorted.sort((a, b) => rank(b.depthKm, -1) - rank(a.depthKm, -1));
+        break;
+      default:
+        sorted.sort((a, b) => b.timeMs - a.timeMs);
+    }
+    return sorted;
   });
   readonly sourceOptions = computed<DropdownOption[]>(() => {
     const known = this.sources().length ? this.sources() : [USGS_SOURCE];
@@ -910,8 +928,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           magValue: magnitude,
           magColor: magColor(magnitude),
           depth: depth === null ? NO_DATA : `${Math.round(depth)} km`,
+          depthKm: depth,
           color: this.depthColor(depth),
           time: this.date(p.time),
+          timeMs: typeof p.time === 'number' && Number.isFinite(p.time) ? p.time : 0,
           country: p.country_name ?? 'Sin país asignado',
           source: this.sourceName(p.source),
           others: (p.otras_fuentes ?? []).map((id) => this.sourceName(id)).join(', '),
