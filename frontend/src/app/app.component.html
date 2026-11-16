@@ -33,7 +33,6 @@
 
   <div class="dock top">
     <section class="panel panel-estado" [class.collapsed]="collapsed().estado" aria-label="Estado del sistema">
-      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading">
           <p class="eyebrow">Observatorio sísmico · {{ mode() }}</p>
@@ -88,17 +87,16 @@
           </div>
         </div>
       </div>
-      @if (warnings().length) {
-        <div class="alerts" role="status">
-          @for (warning of warnings(); track warning) {
-            <p>{{ warning }}</p>
-          }
-        </div>
-      }
     </section>
+    @if (warnings().length) {
+      <div class="alerts" role="status">
+        @for (warning of warnings(); track warning) {
+          <p>{{ warning }}</p>
+        }
+      </div>
+    }
 
     <section class="panel panel-filtros" [class.collapsed]="collapsed().filtros" aria-label="Filtros">
-      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading"><h2>Filtros</h2></div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'filtros' }" />
@@ -157,7 +155,6 @@
 
   <div class="dock bottom">
     <section class="panel panel-stats" [class.collapsed]="collapsed().stats" aria-label="Estadísticas">
-      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading inline">
           <h2>Estadísticas</h2>
@@ -266,7 +263,6 @@
     </section>
 
     <section class="panel panel-eventos" [class.collapsed]="collapsed().eventos" aria-label="Tabla de eventos">
-      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading inline">
           <h2>Eventos</h2>

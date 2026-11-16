@@ -535,7 +535,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (typeof matchMedia !== 'undefined' && matchMedia('(max-width: 600px)').matches) {
       // En móvil, el botón minimizar cierra el panel y vuelve al globo completo
       this.mobileTab.set(null);
-      this.adjustGlobeForMobile(null);
       return;
     }
     this.collapsed.update((state) => ({ ...state, [id]: !state[id] }));
@@ -574,17 +573,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.mobileTab() === tab) {
       // Si se pulsa la pestaña ya activa, se deselecciona y se minimiza el panel
       this.mobileTab.set(null);
-      this.adjustGlobeForMobile(null);
     } else {
       this.mobileTab.set(tab);
       this.collapsed.update((s) => ({ ...s, [tab]: false }));
-      this.adjustGlobeForMobile(tab);
     }
   }
 
   closeMobileTab(): void {
     this.mobileTab.set(null);
-    this.adjustGlobeForMobile(null);
   }
 
   private initialAltitude(): number {
@@ -593,28 +589,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const h = window.innerHeight;
     const aspect = w / Math.max(1, h);
     if (aspect < 0.65) {
-      return 3.65;
+      // Teléfono vertical: un pelín más pequeño para holgura de estrellas
+      return 4.2;
     }
     if (aspect < 0.9) {
-      return 2.85;
+      return 3.1;
     }
     return 2.15;
-  }
-
-  private adjustGlobeForMobile(activeTab: PanelId | null): void {
-    if (!this.globe || typeof window === 'undefined' || window.innerWidth > 600) return;
-    const isPortrait = window.innerWidth < window.innerHeight;
-    if (!isPortrait) return;
-
-    if (activeTab === null) {
-      this.zone.runOutsideAngular(() => {
-        this.globe?.pointOfView({ lat: 15, lng: 5, altitude: this.initialAltitude() }, 350);
-      });
-    } else {
-      this.zone.runOutsideAngular(() => {
-        this.globe?.pointOfView({ lat: 28, lng: 5, altitude: this.initialAltitude() * 0.96 }, 350);
-      });
-    }
   }
 
   clearFilters(): void {
