@@ -944,8 +944,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events, stats }),
-        keepalive: true,
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(20000),
       });
     } catch {
       /* la web sigue; solo falla el respaldo compartido */

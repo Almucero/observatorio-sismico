@@ -1,26 +1,25 @@
 # Evidencia: túnel down / up (§11)
 
-Fecha UTC: 2026-11-15
+Fecha UTC: 2026-11-16
 
 ## Condiciones
 
 - Panel: https://observatorio-sismico-almucero.netlify.app  
 - Túnel: `ngrok http 127.0.0.1:8000` → `https://jasmine-unpainted-oat.ngrok-free.dev`  
-- Backend Compose: cinco servicios healthy
+- Backend Compose: cinco servicios healthy; luego `docker compose stop` + parada de ngrok
+
+## Carga con API viva
+
+1. Panel Netlify con túnel activo → **Conectada**, **201** eventos USGS en el mapa.
+2. Se guarda la lectura en Netlify Blobs (`POST /api/ultima-lectura`, 201 features).
 
 ## DOWN
 
-1. Se detuvo el proceso `ngrok`.
-2. `GET` a la URL pública → error (404 / no reachable).
-3. Recarga del panel Netlify (incluso desde otro PC sin historial local) → estado **Sin respuesta** y aviso  
+1. `docker compose stop` y se detuvo `ngrok`.
+2. `GET` local `:8000` y URL ngrok → sin respuesta / 404.
+3. Recarga del panel Netlify (sin API) → estado **Sin respuesta** y aviso  
    **«La API o el túnel no responden. Se muestra la última lectura correcta.»**  
-   Los puntos y estadísticas salen de la copia compartida en Netlify (`/api/ultima-lectura`), no del `localStorage` del navegador.
-
-## UP
-
-1. Se relanzó `ngrok http 127.0.0.1:8000` (misma URL free en esta sesión).
-2. `GET …/api/salud` con `ngrok-skip-browser-warning` → `status=ok`.
-3. Recarga del panel → **«API accesible · consulta completada»** · **188 eventos dibujados**.
+   Mapa y estadísticas con **201** eventos desde la copia compartida (`GET /api/ultima-lectura` → 200), no desde `localStorage`.
 
 ## Exposición
 
