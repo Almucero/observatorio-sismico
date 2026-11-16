@@ -152,7 +152,7 @@ const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 2000;
 const FLY_MS = 1800;
 const FLY_ALTITUDE = 0.42;
-const CACHE_KEY = 'observatorio:ultima-lectura';
+const SHARED_CACHE_URL = '/api/ultima-lectura';
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
 const USGS = 'usgs';
@@ -425,7 +425,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     minute: '2-digit',
   });
   private readonly disc = new CircleGeometry(1, 24);
-  private frameTick = 0;
   private readonly dotMaterials = new Map<string, MeshBasicMaterial>();
   private waveTexture?: CanvasTexture;
 
@@ -434,8 +433,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private timer?: ReturnType<typeof setTimeout>;
   private frame = 0;
   private dragging = false;
-  private hovering = false;
-  private pointerOver = false;
   private rotateAfter = 0;
   private controller = new AbortController();
   private destroyed = false;
@@ -448,10 +445,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private onResize = () => this.resizeGlobe();
   private onPointerDown = () => {
     this.dragging = true;
-    this.pointerOver = true;
-  };
-  private trackPointer = (event: PointerEvent) => {
-    this.pointerOver = event.type !== 'pointerleave';
   };
   private onPointerUp = () => {
     if (!this.dragging) return;
@@ -548,9 +541,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .objectAltitude(0.01)
       .objectThreeObject((d: object) => this.buildQuake(d as GlobePoint))
       .objectLabel('label')
-      .onObjectHover((quake: object | null) => {
-        this.hovering = Boolean(quake);
-      })
+      .enablePointerInteraction(false)
       .htmlElementsData([])
       .htmlAltitude(LABEL_ALTITUDE)
       .htmlElement((d: object) => (d as CountryLabel).el)
@@ -564,8 +555,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     controls.minDistance = GLOBE_RADIUS * 1.2;
     controls.maxDistance = GLOBE_RADIUS * 6;
     el.addEventListener('pointerdown', this.onPointerDown);
-    el.addEventListener('pointermove', this.trackPointer, { passive: true });
-    el.addEventListener('pointerleave', this.trackPointer);
     window.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('pointercancel', this.onPointerUp);
 
@@ -660,49 +649,31 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const halfFov = Math.tan((camera.fov * Math.PI) / 360);
     const now = performance.now();
     const time = now / 1000;
-    this.frameTick++;
-    // El giro solo se detiene al pulsar o arrastrar y con el ratón sobre un terremoto.
-    // El globo recuerda la última posición del ratón, así que fuera del lienzo no cuenta
-    const onQuake = this.hovering && this.pointerOver;
+    // El giro solo se detiene al pulsar o arrastrar (sin raycast continuo al pasar el ratón)
     const controls = this.globe.controls();
-    controls.autoRotate = !this.dragging && !onQuake && now > this.rotateAfter;
+    controls.autoRotate = !this.dragging && now > this.rotateAfter;
     controls.zoomToCursor =
       Math.abs(camera.position.y) < camera.position.length() * POLAR_ZOOM_LIMIT;
     this.animateGlow(time, altitude, halfFov);
-    // Con muchos puntos o al arrastrar, se anima menos a menudo para no trabar el hilo
-    const busy = this.dragging || this.points.length > 220;
-    if (!busy || this.frameTick % 2 === 0) {
-      this.animateQuakes(time, altitude, halfFov, !busy || this.frameTick % 4 === 0);
-    }
-    if (!this.dragging) this.placeLabels(altitude, camera);
+    this.animateQuakes(time, altitude, halfFov);
+    this.placeLabels(altitude, camera);
   };
 
   // Radio en píxeles casi constante: grandes de lejos y algo menores al acercar
-  private animateQuakes(
-    time: number,
-    altitude: number,
-    halfFov: number,
-    animateWaves: boolean
-  ): void {
+  private animateQuakes(time: number, altitude: number, halfFov: number): void {
     const unitsPerPx =
       (2 * Math.min(altitude, 2.6) * GLOBE_RADIUS * halfFov) / this.viewportHeight;
     const farness = Math.max(0, Math.min(1, (altitude - 0.2) / 2));
     const basePx = 5 + 4 * farness;
-    const showWaves = animateWaves && altitude < 1.35 && this.points.length <= 260;
     for (const point of this.points) {
       const node = point.node;
       if (!node) continue;
       const radius = point.baseSize * basePx * unitsPerPx;
       const beat = 1 + 0.14 * Math.sin(time * 3 + point.phase);
       node.core.scale.setScalar((radius * beat) / DOT_EDGE);
-      if (showWaves) {
-        const progress = (time / 2.4 + point.phase) % 1;
-        node.wave.visible = true;
-        node.wave.scale.setScalar((radius * (1 + 2.2 * progress)) / WAVE_EDGE);
-        node.wave.material.opacity = 0.9 * (1 - progress) ** 2;
-      } else if (node.wave.visible) {
-        node.wave.visible = false;
-      }
+      const progress = (time / 2.4 + point.phase) % 1;
+      node.wave.scale.setScalar((radius * (1 + 2.2 * progress)) / WAVE_EDGE);
+      node.wave.material.opacity = 0.9 * (1 - progress) ** 2;
     }
   }
 
@@ -908,20 +879,31 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return hash / 1000;
   }
 
-  private saveReading(events: Events, stats: StatsResponse | null): void {
+  // Copia compartida en Netlify (Blobs): cualquier PC ve la última lectura buena del panel
+  private async publishReading(events: Events, stats: StatsResponse | null): Promise<void> {
+    if (!this.onNetlify()) return;
     try {
-      const reading: CachedReading = { savedAt: Date.now(), events, stats };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
+      await fetch(SHARED_CACHE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events, stats }),
+        keepalive: true,
+        signal: AbortSignal.timeout(12000),
+      });
     } catch {
-      /* sin espacio o modo privado */
+      /* la web sigue; solo falla el respaldo compartido */
     }
   }
 
-  private loadReading(): CachedReading | null {
+  private async fetchSharedReading(): Promise<CachedReading | null> {
+    if (!this.onNetlify()) return null;
     try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      const reading = JSON.parse(raw) as CachedReading;
+      const response = await fetch(SHARED_CACHE_URL, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) return null;
+      const reading = (await response.json()) as CachedReading;
       if (reading?.events?.type !== 'FeatureCollection' || !Array.isArray(reading.events.features)) {
         return null;
       }
@@ -929,6 +911,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     } catch {
       return null;
     }
+  }
+
+  private onNetlify(): boolean {
+    return typeof location !== 'undefined' && location.hostname.endsWith('netlify.app');
   }
 
   // Pinta mapa, tabla y metadatos a partir de una FeatureCollection (viva o en caché)
@@ -1035,8 +1021,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.period.set(`${this.date(start)} – ${this.date(end)}`);
   }
 
-  private showCachedReading(): boolean {
-    const cached = this.loadReading();
+  private async showSharedReading(): Promise<boolean> {
+    const cached = await this.fetchSharedReading();
     if (!cached) return false;
     this.paintEvents(cached.events, cached.savedAt);
     if (cached.stats) this.paintStats(cached.stats);
@@ -1067,13 +1053,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       this.status.set(config.mode === 'demo' ? 'Demo' : 'Conectada');
       let stats: StatsResponse | null = null;
       if (config.mode === 'api') stats = await this.loadStats(config, headers, qs);
-      this.saveReading(data, stats);
+      void this.publishReading(data, stats);
     } catch {
       if (!this.destroyed) {
         this.apiFailed.set(true);
         this.status.set('Sin respuesta');
-        // Sin datos en memoria (p. ej. primera carga con la API caída): recupera la última buena
-        if (!this.eventRows().length) this.showCachedReading();
+        // Sin datos en memoria (otro PC o recarga con el túnel caído): copia en Netlify
+        if (!this.eventRows().length) await this.showSharedReading();
       }
     } finally {
       if (!this.destroyed && config.mode === 'api') {
@@ -1122,8 +1108,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     window.removeEventListener('pointercancel', this.onPointerUp);
     const el = this.globeHost.nativeElement;
     el.removeEventListener('pointerdown', this.onPointerDown);
-    el.removeEventListener('pointermove', this.trackPointer);
-    el.removeEventListener('pointerleave', this.trackPointer);
     try {
       (this.globe as { _destructor?: () => void } | undefined)?._destructor?.();
     } catch {

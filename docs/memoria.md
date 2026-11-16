@@ -108,6 +108,7 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 - API (túnel): https://jasmine-unpainted-oat.ngrok-free.dev  
 - Durante la defensa: `docker compose up -d` + `ngrok http 127.0.0.1:8000` (si cambia la URL free, actualizar `config.json` y redeploy).  
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`
+- Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
 
 ## 10. Ampliación: más fuentes (opcional)
 
