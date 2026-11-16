@@ -12,9 +12,11 @@
       ></span>
     }
   </div>
-  <div class="aura" aria-hidden="true"></div>
-  <div class="aura sweep" aria-hidden="true"></div>
-  <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
+  <div class="globe-scene">
+    <div class="aura" aria-hidden="true"></div>
+    <div class="aura sweep" aria-hidden="true"></div>
+    <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
+  </div>
 
   <ng-template #fold let-id>
     <button
@@ -89,7 +91,7 @@
       </div>
     </section>
     @if (warnings().length) {
-      <div class="alerts" role="status">
+      <div class="alerts" [class.mobile-hidden]="mobileTab() && mobileTab() !== 'estado'" role="status">
         @for (warning of warnings(); track warning) {
           <p>{{ warning }}</p>
         }
