@@ -27,15 +27,24 @@
   background: #000;
 }
 
-.stars,
-.globe {
+.stars {
   position: absolute;
   inset: 0;
-}
-
-.stars {
   z-index: 0;
   pointer-events: none;
+}
+
+.globe,
+.globe canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.globe:active,
+.globe canvas:active {
+  cursor: grabbing;
 }
 
 .star {
@@ -69,7 +78,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
 }
 
 /* Halo que sigue al tamaño del globo en pantalla (--globe-r lo fija el componente) */
@@ -1061,6 +1070,7 @@ tbody tr.go:hover .where span {
     inset: 0;
     width: 100%;
     height: 100%;
+    pointer-events: auto;
   }
 
   .dock {
