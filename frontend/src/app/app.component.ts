@@ -335,7 +335,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly eventSearch = signal('');
   readonly eventSort = signal('time-desc');
   readonly eventSorts = EVENT_SORTS;
-  readonly mobileTab = signal<PanelId>('estado');
+  readonly mobileTab = signal<PanelId | null>(null);
   readonly collapsed = signal<Record<PanelId, boolean>>({
     estado: false,
     filtros: false,
@@ -465,6 +465,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private labelsPlacedAt = 0;
   private viewportHeight = 1;
   private auraRadius = 0;
+  private resizeObserver?: ResizeObserver;
   private onResize = () => this.resizeGlobe();
   private onPointerDown = () => {
     this.dragging = true;
@@ -513,7 +514,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (typeof matchMedia !== 'undefined') {
       if (matchMedia('(max-width: 600px)').matches) {
-        // Teléfono: tab nav activa, todos los paneles siempre expandidos
+        // En móvil iniciamos con el globo despejado y centrado (sin panel)
+        this.mobileTab.set(null);
         this.collapsed.set({ estado: false, filtros: false, stats: false, eventos: false });
       } else if (matchMedia('(max-width: 900px)').matches) {
         // Tablet: apilados, colapsar filtros y estadísticas por defecto
@@ -530,6 +532,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   toggle(id: PanelId): void {
+    if (typeof matchMedia !== 'undefined' && matchMedia('(max-width: 600px)').matches) {
+      // En móvil, el botón minimizar cierra el panel y vuelve al globo completo
+      this.mobileTab.set(null);
+      return;
+    }
     this.collapsed.update((state) => ({ ...state, [id]: !state[id] }));
   }
 
@@ -563,9 +570,17 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   setMobileTab(tab: PanelId): void {
-    this.mobileTab.set(tab);
-    // Asegurar que el panel de destino está expandido al cambiar de pestaña
-    this.collapsed.update(s => ({ ...s, [tab]: false }));
+    if (this.mobileTab() === tab) {
+      // Si se pulsa la pestaña ya activa, se deselecciona y se minimiza el panel
+      this.mobileTab.set(null);
+    } else {
+      this.mobileTab.set(tab);
+      this.collapsed.update((s) => ({ ...s, [tab]: false }));
+    }
+  }
+
+  closeMobileTab(): void {
+    this.mobileTab.set(null);
   }
 
   clearFilters(): void {
@@ -640,6 +655,10 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.globe.pointOfView({ lat: 18, lng: 5, altitude: 2.15 }, 0);
     this.globe.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.resizeGlobe();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.resizeGlobe());
+      this.resizeObserver.observe(el);
+    }
     window.addEventListener('resize', this.onResize);
     this.frame = requestAnimationFrame(this.animate);
   }
@@ -1401,6 +1420,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     clearInterval(this.clockTimer);
     cancelAnimationFrame(this.frame);
     this.controller.abort();
+    this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('pointercancel', this.onPointerUp);

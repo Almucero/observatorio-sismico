@@ -1,4 +1,4 @@
-<div class="stage" [attr.data-mobile-tab]="mobileTab()" (mouseover)="showTip($event)" (mouseleave)="tip.set(null)">
+<div class="stage" [attr.data-mobile-tab]="mobileTab() ?? 'none'" (mouseover)="showTip($event)" (mouseleave)="tip.set(null)">
   <div class="stars" aria-hidden="true">
     @for (s of starField; track $index) {
       <span
@@ -33,6 +33,7 @@
 
   <div class="dock top">
     <section class="panel panel-estado" [class.collapsed]="collapsed().estado" aria-label="Estado del sistema">
+      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading">
           <p class="eyebrow">Observatorio sísmico · {{ mode() }}</p>
@@ -97,6 +98,7 @@
     </section>
 
     <section class="panel panel-filtros" [class.collapsed]="collapsed().filtros" aria-label="Filtros">
+      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading"><h2>Filtros</h2></div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'filtros' }" />
@@ -155,6 +157,7 @@
 
   <div class="dock bottom">
     <section class="panel panel-stats" [class.collapsed]="collapsed().stats" aria-label="Estadísticas">
+      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading inline">
           <h2>Estadísticas</h2>
@@ -263,6 +266,7 @@
     </section>
 
     <section class="panel panel-eventos" [class.collapsed]="collapsed().eventos" aria-label="Tabla de eventos">
+      <div class="sheet-handle" aria-hidden="true" (click)="closeMobileTab()"></div>
       <header class="bar">
         <div class="heading inline">
           <h2>Eventos</h2>
@@ -340,7 +344,7 @@
     </section>
   </div>
 
-  <!-- Barra de navegación por pestañas: solo visible en teléfono (≤600px) -->
+  <!-- Barra de navegación por pestañas estilo Revolut (liquid glass flotante): solo visible en teléfono (≤600px) -->
   <nav class="mobile-nav" aria-label="Secciones del observatorio">
     <button
       type="button"
@@ -348,9 +352,9 @@
       (click)="setMobileTab('estado')"
       aria-label="Estado del sistema"
     >
-      <!-- Pulso / actividad -->
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <polyline points="1,10 5,10 7,4 10,16 13,10 15,10 19,10"/>
+      <!-- Pulso sismográfico / latido -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 12h3.5l2.5-6 4 12 3-8 2 4h3" />
       </svg>
       <span>Estado</span>
     </button>
@@ -360,11 +364,9 @@
       (click)="setMobileTab('filtros')"
       aria-label="Filtros"
     >
-      <!-- Embudo (tres líneas decrecientes) -->
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <line x1="3" y1="6"  x2="17" y2="6"/>
-        <line x1="6" y1="10" x2="14" y2="10"/>
-        <line x1="9" y1="14" x2="11" y2="14"/>
+      <!-- Embudo moderno -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 6h16M7 12h10M10 18h4" />
       </svg>
       <span>Filtros</span>
     </button>
@@ -374,9 +376,9 @@
       (click)="setMobileTab('stats')"
       aria-label="Estadísticas"
     >
-      <!-- Gráfica de barras -->
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <path d="M3 16V10h4v6zM8 16V5h4v11zM13 16V8h4v8z"/>
+      <!-- Analítica / barras estilo Revolut -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 20V10M12 20V4M6 20v-6" />
       </svg>
       <span>Stats</span>
     </button>
@@ -386,11 +388,9 @@
       (click)="setMobileTab('eventos')"
       aria-label="Eventos"
     >
-      <!-- Lista -->
-      <svg viewBox="0 0 20 20" aria-hidden="true">
-        <line x1="3"  y1="6"  x2="17" y2="6"/>
-        <line x1="3"  y1="10" x2="17" y2="10"/>
-        <line x1="3"  y1="14" x2="11" y2="14"/>
+      <!-- Lista de registros -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
       </svg>
       <span>Eventos</span>
     </button>
