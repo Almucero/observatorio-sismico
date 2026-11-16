@@ -99,12 +99,16 @@ type EventRow = {
   id: string;
   place: string;
   mag: string;
+  magValue: number | null;
+  magColor: string;
   depth: string;
   color: string;
   time: string;
   country: string;
   source: string;
   others: string;
+  lat: number;
+  lng: number;
 };
 type QuakeNode = { core: Mesh; wave: Mesh<CircleGeometry, MeshBasicMaterial> };
 type GlobePoint = {
@@ -138,7 +142,9 @@ const LABEL_ALTITUDE = 0.012;
 // Ancho medio por letra del rótulo (10 px en mayúsculas con espaciado)
 const LABEL_CHAR_PX = 8;
 const NO_DATA = 'ND';
-const ROTATE_RESUME_MS = 5500;
+const ROTATE_RESUME_MS = 2000;
+const FLY_MS = 1800;
+const FLY_ALTITUDE = 0.42;
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
 const POLAR_ZOOM_LIMIT = 0.87;
 const USGS = 'usgs';
@@ -158,6 +164,15 @@ const ALL_SOURCES_OPTION: DropdownOption = {
   hint: 'Cada terremoto una sola vez, aunque lo comuniquen varias',
 };
 const ALL_COUNTRIES_OPTION: DropdownOption = { value: '', label: 'Todos los países', short: 'Todos' };
+const EVENT_FILTERS: DropdownOption[] = [
+  { value: '', label: 'Todas las magnitudes', short: 'Todas' },
+  { value: '2', label: 'Magnitud ≥ 2', short: '≥ 2' },
+  { value: '3', label: 'Magnitud ≥ 3', short: '≥ 3' },
+  { value: '4', label: 'Magnitud ≥ 4', short: '≥ 4' },
+  { value: '5', label: 'Magnitud ≥ 5', short: '≥ 5' },
+  { value: '6', label: 'Magnitud ≥ 6', short: '≥ 6' },
+  { value: 'nd', label: 'Sin magnitud', short: 'S/D' },
+];
 const STALE_NOTE = 'Si se retrasa, lo que ves puede estar desactualizado.';
 const USGS_INGESTION_TIP = `Última vez que el sistema descargó terremotos de USGS, el servicio geológico de EE. UU. y fuente principal de los datos. ${STALE_NOTE}`;
 const LIST = new Intl.ListFormat('es', { type: 'conjunction' });
@@ -225,6 +240,23 @@ function quakes(count: number): string {
   return count === 1 ? '1 terremoto' : `${count} terremotos`;
 }
 
+function plain(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+function magColor(mag: number | null): string {
+  if (mag === null) return '#94a3b8';
+  if (mag < 2) return '#7dd3fc';
+  if (mag < 3) return '#38bdf8';
+  if (mag < 4) return '#a3e635';
+  if (mag < 5) return '#fbbf24';
+  if (mag < 6) return '#fb923c';
+  return '#f87171';
+}
+
 // Cada barra pesa según el mayor recuento; sin total (estadísticas no disponibles)
 // queda solo la descripción, que sirve de leyenda
 function toBars(items: BarInput[], total: number | null): Bar[] {
@@ -290,6 +322,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly countryOptions = signal<DropdownOption[]>([ALL_COUNTRIES_OPTION]);
   readonly stats = signal<StatsView>(EMPTY_STATS);
   readonly eventRows = signal<EventRow[]>([]);
+  readonly eventSearch = signal('');
+  readonly eventFilter = signal('');
+  readonly eventFilters = EVENT_FILTERS;
   readonly collapsed = signal<Record<PanelId, boolean>>({
     estado: false,
     filtros: false,
@@ -301,6 +336,18 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (this.apiFailed()) return 'error';
     if (this.status() === 'Cargando') return 'idle';
     return this.staleWarning() || this.truncated() ? 'warn' : 'ok';
+  });
+  readonly visibleEvents = computed(() => {
+    const query = plain(this.eventSearch());
+    const filter = this.eventFilter();
+    return this.eventRows().filter((row) => {
+      if (filter === 'nd' && row.magValue !== null) return false;
+      if (filter && filter !== 'nd' && (row.magValue === null || row.magValue < Number(filter))) {
+        return false;
+      }
+      if (!query) return true;
+      return plain(`${row.place} ${row.country} ${row.id} ${row.source}`).includes(query);
+    });
   });
   readonly sourceOptions = computed<DropdownOption[]>(() => {
     const known = this.sources().length ? this.sources() : [USGS_SOURCE];
@@ -409,6 +456,19 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   applyFilters(): void {
     clearTimeout(this.timer);
     void this.refresh();
+  }
+
+  onEventSearch(event: Event): void {
+    this.eventSearch.set((event.target as HTMLInputElement).value);
+  }
+
+  focusEvent(row: EventRow): void {
+    if (!this.globe) return;
+    this.tip.set(null);
+    this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
+    this.zone.runOutsideAngular(() => {
+      this.globe?.pointOfView({ lat: row.lat, lng: row.lng, altitude: FLY_ALTITUDE }, FLY_MS);
+    });
   }
 
   clearFilters(): void {
@@ -781,7 +841,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       '<div class="quake-card">',
       `<strong>${this.escape(row.place)}</strong>`,
       '<dl>',
-      `<dt>Magnitud</dt><dd class="mag">${shown(row.mag)}</dd>`,
+      `<dt>Magnitud</dt><dd class="mag" style="color: ${row.magColor}">${shown(row.mag)}</dd>`,
       `<dt>Profundidad</dt><dd class="depth" style="--depth: ${row.color}">${shown(row.depth)}</dd>`,
       `<dt>Fecha</dt><dd class="time">${row.time}</dd>`,
       `<dt>País</dt><dd class="country">${this.escape(row.country)}</dd>`,
@@ -847,12 +907,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
           id,
           place: p.place ?? 'Sin descripción',
           mag: magnitude === null ? NO_DATA : magnitude.toFixed(1),
+          magValue: magnitude,
+          magColor: magColor(magnitude),
           depth: depth === null ? NO_DATA : `${Math.round(depth)} km`,
           color: this.depthColor(depth),
           time: this.date(p.time),
           country: p.country_name ?? 'Sin país asignado',
           source: this.sourceName(p.source),
           others: (p.otras_fuentes ?? []).map((id) => this.sourceName(id)).join(', '),
+          lat,
+          lng: lon,
         };
         rows.push(row);
         points.push({

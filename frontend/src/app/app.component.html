@@ -269,10 +269,12 @@
           <span
             class="tag"
             [attr.data-tip]="
-              'Terremotos del periodo. La tabla lista los ' + eventRows().length + ' más recientes.'
+              'Terremotos del periodo. La tabla lista los ' +
+              eventRows().length +
+              ' más recientes; clic en una fila para ir a él en el globo.'
             "
           >
-            {{ count() }}
+            {{ visibleEvents().length }}
           </span>
         </div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'eventos' }" />
@@ -280,11 +282,26 @@
       <div class="fold-wrap">
         <div class="fold-inner">
           <div class="body">
+            <div class="tools">
+              <input
+                type="search"
+                placeholder="Buscar lugar, país o id…"
+                [value]="eventSearch()"
+                (input)="onEventSearch($event)"
+                aria-label="Buscar en la lista de eventos"
+              />
+              <app-dropdown
+                label="Filtro de magnitud"
+                [options]="eventFilters"
+                [value]="eventFilter()"
+                (valueChange)="eventFilter.set($event)"
+              />
+            </div>
             <table>
               <thead>
                 <tr>
-                  <th data-tip="Magnitud del terremoto. ND significa que la fuente no la ha publicado.">Mag.</th>
-                  <th data-tip="Lugar según la fuente del dato; debajo, el país asignado y la hora en tu zona horaria.">
+                  <th data-tip="Magnitud del terremoto. El color es más cálido cuanto mayor es. ND: sin dato.">Mag.</th>
+                  <th data-tip="Lugar según la fuente del dato; debajo, el país asignado y la hora en tu zona horaria. Clic para ir al punto en el globo.">
                     Lugar
                   </th>
                   <th
@@ -295,9 +312,13 @@
                 </tr>
               </thead>
               <tbody>
-                @for (row of eventRows(); track row.id) {
-                  <tr [title]="'ID ' + row.id">
-                    <td class="mag">{{ row.mag }}</td>
+                @for (row of visibleEvents(); track row.id) {
+                  <tr
+                    class="go"
+                    [title]="'Ir al terremoto · ID ' + row.id"
+                    (click)="focusEvent(row)"
+                  >
+                    <td class="mag" [style.color]="row.magColor">{{ row.mag }}</td>
                     <td class="where">
                       <span>{{ row.place }}</span>
                       <small>{{ row.country }} · {{ row.time }}</small>
@@ -306,7 +327,9 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td class="empty">Sin terremotos en este periodo</td>
+                    <td class="empty">
+                      {{ eventRows().length ? 'Ningún terremoto coincide con la búsqueda' : 'Sin terremotos en este periodo' }}
+                    </td>
                   </tr>
                 }
               </tbody>

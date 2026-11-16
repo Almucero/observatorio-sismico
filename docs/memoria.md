@@ -42,7 +42,7 @@ Conjunto de referencia: `evento_actual` (~18 492 filas tras live + histórico 
 
 | Dimensión | Hallazgo | Acción | Después / límite |
 |-----------|----------|--------|------------------|
-| Completitud | 1 mag null; 0 place vacío; ~14 380 sin país; 0 depth null en actual | Conservar null; no rellenar con 0; país null como categoría | Mag ND en UI; «Sin país» en stats |
+| Completitud | 1 mag null; 0 place vacío; sin país ≈ océano (mapa 1:110M + costa ≤25 km); 0 depth null en actual | Conservar null; no rellenar con 0; país null como categoría | Mag ND en UI; «Sin país» en stats |
 | Unicidad | 0 duplicados `(event_id, updated)`; actual 1 fila/id | UNIQUE + upsert `DO NOTHING` / `WHERE updated <` | Evidencia `idempotencia.json` |
 | Unicidad entre fuentes | ~38 k avisos de otras fuentes describen un terremoto ya mostrado | Emparejar por hora (±16 s) y lugar (≤200 km); prioridad USGS → regional → agregadores; enlace en `evento_duplicado` | 0 residuales 2025; `fuentes-adicionales.md` |
 | Validez | Coords fuera de rango → cuarentena | Rechazo con motivo | 1 caso sintético `coordenadas_fuera_de_rango` |
