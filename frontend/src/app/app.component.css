@@ -1292,6 +1292,7 @@ tbody tr.go:hover .where span {
   .stage[data-mobile-tab="filtros"] .dock.top {
     display: flex !important;
     flex-direction: column !important;
+    gap: 8px !important;
   }
 
   .stage[data-mobile-tab="stats"] .dock.bottom,
@@ -1419,12 +1420,12 @@ tbody tr.go:hover .where span {
 
   /* ══════════════════════════════════════════════
      ALTURAS IDÉNTICAS POR PARES EN MÓVIL:
-     - Estado y Filtros: Misma altura (295px)
+     - Estado y Filtros: Misma altura justa sin espacio sobrante (252px)
      - Stats y Eventos: Misma altura (370px, respetando el tamaño natural de Stats)
      ══════════════════════════════════════════════ */
   .panel-estado,
   .panel-filtros {
-    height: 295px !important;
+    height: 252px !important;
   }
 
   .panel-stats,
@@ -1435,6 +1436,12 @@ tbody tr.go:hover .where span {
   /* ══════════════════════════════════════════════
      ADAPTACIÓN ESPECÍFICA: PANEL ESTADO
      ══════════════════════════════════════════════ */
+  .panel-estado .body {
+    padding: 6px 14px 10px !important;
+    gap: 6px !important;
+    overflow: hidden !important;
+  }
+
   .panel-estado .tiles {
     display: grid !important;
     grid-template-columns: 1.35fr 1fr 1fr !important;
@@ -1503,12 +1510,12 @@ tbody tr.go:hover .where span {
   .stage[data-mobile-tab="estado"] .dock.top .alerts {
     display: flex !important;
     order: -1 !important;
-    margin-bottom: 8px !important;
-    margin-top: 0 !important;
+    margin: 0 !important;
   }
 
   .stage[data-mobile-tab="estado"] .panel-estado {
     order: 1 !important;
+    margin: 0 !important;
   }
 
   .dock.top .alerts {
@@ -1537,14 +1544,14 @@ tbody tr.go:hover .where span {
      ══════════════════════════════════════════════ */
   .panel-filtros .body {
     overflow: hidden !important;
-    padding: 8px 14px 12px !important;
+    padding: 6px 14px 10px !important;
     gap: 6px !important;
   }
 
   .panel-filtros .fields {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 6px 10px !important;
+    gap: 5px 10px !important;
   }
 
   /* Fila 1: Desde y Hasta (2 columnas simétricas) */
@@ -1591,7 +1598,7 @@ tbody tr.go:hover .where span {
   }
 
   .panel-filtros .actions button {
-    height: 36px !important;
+    height: 34px !important;
     font-size: 12px !important;
     font-weight: 700 !important;
     border-radius: 10px !important;
