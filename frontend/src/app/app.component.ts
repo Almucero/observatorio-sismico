@@ -84,8 +84,8 @@ type CachedReading = {
 type CountryRow = { country_id: string; country_name: string; count: number };
 type BandRow = { banda: string; count: number };
 type Band = { band: string; label: string; about: string; color?: string };
-type BarInput = { label: string; about: string; count: number; color?: string };
-type Bar = { label: string; count: string; share: number; tip: string; color: string };
+type BarInput = { id?: string; label: string; about: string; count: number; color?: string };
+type Bar = { id?: string; label: string; count: string; share: number; tip: string; color: string };
 type StatsView = {
   total: string;
   lastHour: string;
@@ -130,6 +130,7 @@ type GlobePoint = {
   node?: QuakeNode;
 };
 type CountryLabel = {
+  countryId?: string;
   lat: number;
   lng: number;
   rank: number;
@@ -138,6 +139,7 @@ type CountryLabel = {
   shown: boolean;
   el: HTMLElement;
 };
+type CountryTarget = { lat: number; lng: number; altitude: number };
 type Star = { x: number; y: number; size: number; duration: number; delay: number };
 type PanelId = 'estado' | 'filtros' | 'stats' | 'eventos';
 type StatusLevel = 'ok' | 'warn' | 'error' | 'idle';
@@ -154,6 +156,8 @@ const NO_DATA = 'ND';
 const ROTATE_RESUME_MS = 2000;
 const FLY_MS = 1800;
 const FLY_ALTITUDE = 0.42;
+const INITIAL_LAT = 18;
+const INITIAL_LNG = 5;
 const SHARED_CACHE_URL = '/api/ultima-lectura';
 const HOVER_MS = 90;
 // Seno de 60°: más cerca de los polos, acercar hacia el cursor haría girar el globo sobre su eje
@@ -271,9 +275,10 @@ function magColor(mag: number | null): string {
 // queda solo la descripción, que sirve de leyenda
 function toBars(items: BarInput[], total: number | null): Bar[] {
   const max = Math.max(1, ...items.map((item) => item.count));
-  return items.map(({ label, about, count, color }) => {
+  return items.map(({ id, label, about, count, color }) => {
     const percent = total ? Math.round((count / total) * 100) : 0;
     return {
+      id,
       label,
       color: color ?? '',
       count: total === null ? '—' : String(count),
@@ -327,6 +332,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly endLocal = signal('');
   readonly minMag = signal<number | null>(null);
   readonly countryId = signal('');
+  readonly appliedCountryId = signal('');
   readonly source = signal(ALL_SOURCES);
   readonly sources = signal<SourceInfo[]>([]);
   readonly countryOptions = signal<DropdownOption[]>([ALL_COUNTRIES_OPTION]);
@@ -462,6 +468,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private catalogStats: StatsResponse | null = null;
   private points: GlobePoint[] = [];
   private labels: CountryLabel[] = [];
+  private countryTargets = new Map<string, CountryTarget>();
   private labelsPlacedAt = 0;
   private viewportHeight = 1;
   private auraRadius = 0;
@@ -553,7 +560,43 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   applyFilters(): void {
     clearTimeout(this.timer);
+    const country = this.countryId();
+    this.appliedCountryId.set(country);
+    this.updateCountryHighlight();
+    if (country) {
+      this.focusCountry(country);
+    } else {
+      this.resetView();
+    }
     void this.refresh();
+  }
+
+  resetView(): void {
+    if (!this.globe) return;
+    this.tip.set(null);
+    this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
+    this.zone.runOutsideAngular(() => {
+      this.globe?.pointOfView(
+        { lat: INITIAL_LAT, lng: INITIAL_LNG, altitude: this.initialAltitude() },
+        FLY_MS
+      );
+    });
+  }
+
+  onRankingCountryClick(id: string): void {
+    this.countryId.set(id);
+    this.applyFilters();
+  }
+
+  focusCountry(id: string): void {
+    if (!this.globe) return;
+    const target = this.countryTargets.get(id);
+    if (!target) return;
+    this.tip.set(null);
+    this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
+    this.zone.runOutsideAngular(() => {
+      this.globe?.pointOfView({ lat: target.lat, lng: target.lng, altitude: target.altitude }, FLY_MS);
+    });
   }
 
   onEventSearch(event: Event): void {
@@ -603,7 +646,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.endLocal.set('');
     this.minMag.set(null);
     this.countryId.set('');
+    this.appliedCountryId.set('');
     this.source.set(ALL_SOURCES);
+    this.updateCountryHighlight();
     this.applyFilters();
   }
 
@@ -637,7 +682,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .polygonsData([])
       .polygonCapColor(() => '#0a1628')
       .polygonSideColor(() => '#0a1628')
-      .polygonStrokeColor(() => 'rgba(125, 211, 252, 0.55)')
+      .polygonStrokeColor((feat: object) => {
+        const id = (feat as { properties?: { ADM0_A3?: string } }).properties?.ADM0_A3;
+        const selected = this.appliedCountryId();
+        if (id && id === selected) return '#38bdf8';
+        return selected ? 'rgba(125, 211, 252, 0.22)' : 'rgba(125, 211, 252, 0.45)';
+      })
       .polygonAltitude(0.004)
       .polygonsTransitionDuration(0)
       .objectsData([])
@@ -667,7 +717,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.quakeTipEl.style.display = 'none';
     document.body.appendChild(this.quakeTipEl);
 
-    this.globe.pointOfView({ lat: 18, lng: 5, altitude: this.initialAltitude() }, 0);
+    this.globe.pointOfView({ lat: INITIAL_LAT, lng: INITIAL_LNG, altitude: this.initialAltitude() }, 0);
     this.globe.renderer().setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.resizeGlobe();
     if (typeof ResizeObserver !== 'undefined') {
@@ -831,24 +881,38 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const maxRank = altitude > 1.9 ? 3 : altitude > 1.2 ? 4 : altitude > 0.7 ? 5 : 9;
     const toCamera = camera.position.clone().normalize();
     const minFacing = GLOBE_RADIUS / camera.position.length() + 0.1;
+    const selectedId = this.appliedCountryId();
     const candidates = this.labels
-      .filter((label) => label.rank <= maxRank && label.normal.dot(toCamera) > minFacing)
-      .sort((a, b) => a.rank - b.rank || Number(b.shown) - Number(a.shown));
+      .filter(
+        (label) =>
+          (label.countryId === selectedId || label.rank <= maxRank) &&
+          label.normal.dot(toCamera) > minFacing
+      )
+      .sort((a, b) => {
+        if (a.countryId === selectedId) return -1;
+        if (b.countryId === selectedId) return 1;
+        return a.rank - b.rank || Number(b.shown) - Number(a.shown);
+      });
 
     const placed: { x: number; y: number; width: number }[] = [];
     const visible = new Set<CountryLabel>();
     for (const label of candidates) {
+      const isSelected = !!selectedId && label.countryId === selectedId;
       const { x, y } = this.globe.getScreenCoords(label.lat, label.lng, LABEL_ALTITUDE);
-      const free = placed.every(
-        (other) =>
-          Math.abs(other.x - x) > (other.width + label.width) / 2 || Math.abs(other.y - y) > 18
-      );
+      const free =
+        isSelected ||
+        placed.every(
+          (other) =>
+            Math.abs(other.x - x) > (other.width + label.width) / 2 || Math.abs(other.y - y) > 18
+        );
       if (!free) continue;
       placed.push({ x, y, width: label.width });
       visible.add(label);
     }
     for (const label of this.labels) {
-      const show = visible.has(label);
+      const isSelected = !!selectedId && label.countryId === selectedId;
+      label.el.classList.toggle('selected', isSelected);
+      const show = isSelected || visible.has(label);
       if (show === label.shown) continue;
       label.shown = show;
       label.el.classList.toggle('shown', show);
@@ -864,6 +928,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   }
 
   private buildLabel(props: Record<string, unknown>): CountryLabel[] {
+    const id = String(props['ADM0_A3'] ?? '');
     const name = String(props['NAME_ES'] ?? props['NAME'] ?? '');
     const lat = Number(props['LABEL_Y']);
     const lng = Number(props['LABEL_X']);
@@ -874,6 +939,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const { x, y, z } = this.globe.getCoords(lat, lng, 0);
     return [
       {
+        countryId: id,
         lat,
         lng,
         rank: Number(props['LABELRANK'] ?? 9),
@@ -885,11 +951,39 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     ];
   }
 
+  private updateCountryHighlight(): void {
+    if (!this.globe) return;
+    const selected = this.appliedCountryId();
+    this.globe.polygonStrokeColor((feat: object) => {
+      const id = (feat as { properties?: { ADM0_A3?: string } }).properties?.ADM0_A3;
+      if (id && id === selected) return '#38bdf8';
+      return selected ? 'rgba(125, 211, 252, 0.22)' : 'rgba(125, 211, 252, 0.45)';
+    });
+  }
+
   private async loadCountries(): Promise<void> {
     try {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
       const features = countries.features ?? [];
+      for (const feat of features) {
+        const props = feat.properties;
+        const code = String(props?.['ADM0_A3'] ?? '');
+        const lat = Number(props?.['LABEL_Y']);
+        const lng = Number(props?.['LABEL_X']);
+        if (code && Number.isFinite(lat) && Number.isFinite(lng)) {
+          let altitude = 0.65;
+          if (feat.bbox && feat.bbox.length === 4) {
+            const [minLng, minLat, maxLng, maxLat] = feat.bbox;
+            const dLat = Math.abs(maxLat - minLat);
+            const dLng = Math.min(Math.abs(maxLng - minLng), 180);
+            const maxSpan = Math.max(dLat, dLng);
+            altitude = Math.min(1.25, Math.max(0.55, 0.45 + (maxSpan / 180) * 0.9));
+          }
+          this.countryTargets.set(code, { lat, lng, altitude });
+        }
+      }
       this.globe?.polygonsData(features);
+      this.updateCountryHighlight();
       this.labels = features.flatMap((feature) => this.buildLabel(feature.properties ?? {}));
       this.globe?.htmlElementsData(this.labels);
       const options = features
@@ -900,6 +994,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
         .filter((option) => option.value && option.label)
         .sort((a, b) => a.label.localeCompare(b.label, 'es'));
       this.countryOptions.set([ALL_COUNTRIES_OPTION, ...options]);
+      if (this.appliedCountryId()) {
+        this.focusCountry(this.appliedCountryId());
+      }
     } catch {
       /* sin fronteras dibujadas; el globo sigue usable */
     }
@@ -1337,6 +1434,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     );
     const mixed = (data.filtros?.source ?? USGS) !== USGS && shown;
     const countries = (data.por_pais ?? []).slice(0, 5).map((row) => ({
+      id: row.country_id === 'SIN_PAIS' ? '' : row.country_id,
       label: row.country_name,
       about:
         row.country_id === 'SIN_PAIS'

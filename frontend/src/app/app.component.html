@@ -1,31 +1,20 @@
-<div class="stage" [attr.data-mobile-tab]="mobileTab() ?? 'none'" (mouseover)="showTip($event)" (mouseleave)="tip.set(null)">
+<div class="stage" [attr.data-mobile-tab]="mobileTab() ?? 'none'" (mouseover)="showTip($event)"
+  (mouseleave)="tip.set(null)">
   <div class="stars" aria-hidden="true">
     @for (s of starField; track $index) {
-      <span
-        class="star"
-        [style.left.%]="s.x"
-        [style.top.%]="s.y"
-        [style.width.px]="s.size"
-        [style.height.px]="s.size"
-        [style.animation-duration.s]="s.duration"
-        [style.animation-delay.s]="s.delay"
-      ></span>
+    <span class="star" [style.left.%]="s.x" [style.top.%]="s.y" [style.width.px]="s.size" [style.height.px]="s.size"
+      [style.animation-duration.s]="s.duration" [style.animation-delay.s]="s.delay"></span>
     }
   </div>
   <div class="globe-scene">
-    <div class="aura" aria-hidden="true"></div>
-    <div class="aura sweep" aria-hidden="true"></div>
+    <div class="aura ambient" aria-hidden="true"></div>
+    <div class="aura corona" aria-hidden="true"></div>
     <div #globeHost class="globe" aria-label="Globo interactivo de terremotos"></div>
   </div>
 
   <ng-template #fold let-id>
-    <button
-      type="button"
-      class="fold"
-      (click)="toggle(id)"
-      [attr.aria-expanded]="!isCollapsed(id)"
-      [attr.aria-label]="isCollapsed(id) ? 'Ampliar panel' : 'Minimizar panel'"
-    >
+    <button type="button" class="fold" (click)="toggle(id)" [attr.aria-expanded]="!isCollapsed(id)"
+      [attr.aria-label]="isCollapsed(id) ? 'Ampliar panel' : 'Minimizar panel'">
       <svg viewBox="0 0 12 12" aria-hidden="true">
         <path d="M2.5 6h7" />
         <path class="v" d="M6 2.5v7" />
@@ -54,24 +43,20 @@
                 <b>{{ count() }}</b>
                 <span>En el mapa</span>
               </div>
-              <div
-                class="tile"
-                data-tip="Terremotos recibidos con coordenadas no válidas. No se pueden situar y no se dibujan."
-              >
+              <div class="tile"
+                data-tip="Terremotos recibidos con coordenadas no válidas. No se pueden situar y no se dibujan.">
                 <b>{{ omitted() }}</b>
                 <span>Descartados</span>
               </div>
             </div>
             <dl class="rows">
-              <div
-                [attr.data-tip]="
+              <div [attr.data-tip]="
                   'Última vez que esta página recibió datos de la API. Se vuelve a consultar sola cada ' +
                   refreshSeconds() +
                   ' segundos. La API generó esa respuesta: ' +
                   generated() +
                   '.'
-                "
-              >
+                ">
                 <dt>Último acceso a la API</dt>
                 <dd>{{ lastRead() }}</dd>
               </div>
@@ -80,8 +65,7 @@
                 <dd>{{ ingestion().value }}</dd>
               </div>
               <div
-                data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria."
-              >
+                data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria.">
                 <dt>Periodo consultado</dt>
                 <dd>{{ period() }}</dd>
               </div>
@@ -91,16 +75,18 @@
       </div>
     </section>
     @if (warnings().length) {
-      <div class="alerts" [class.mobile-hidden]="mobileTab() && mobileTab() !== 'estado'" role="status">
-        @for (warning of warnings(); track warning) {
-          <p>{{ warning }}</p>
-        }
-      </div>
+    <div class="alerts" [class.mobile-hidden]="mobileTab() && mobileTab() !== 'estado'" role="status">
+      @for (warning of warnings(); track warning) {
+      <p>{{ warning }}</p>
+      }
+    </div>
     }
 
     <section class="panel panel-filtros" [class.collapsed]="collapsed().filtros" aria-label="Filtros">
       <header class="bar">
-        <div class="heading"><h2>Filtros</h2></div>
+        <div class="heading">
+          <h2>Filtros</h2>
+        </div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'filtros' }" />
       </header>
       <div class="fold-wrap">
@@ -117,32 +103,18 @@
               </label>
               <label>
                 Magnitud mín.
-                <input
-                  type="number"
-                  step="0.1"
-                  [value]="minMag() ?? ''"
-                  (change)="onMinMag($event)"
-                  placeholder="Todas"
-                />
+                <input type="number" step="0.1" [value]="minMag() ?? ''" (change)="onMinMag($event)"
+                  placeholder="Todas" />
               </label>
               <div class="field">
                 País
-                <app-dropdown
-                  label="País"
-                  [options]="countryOptions()"
-                  [value]="countryId()"
-                  [searchable]="true"
-                  (valueChange)="countryId.set($event)"
-                />
+                <app-dropdown label="País" [options]="countryOptions()" [value]="countryId()" [searchable]="true"
+                  (valueChange)="countryId.set($event)" />
               </div>
               <div class="field">
                 Fuente
-                <app-dropdown
-                  label="Fuente de los datos"
-                  [options]="sourceOptions()"
-                  [value]="source()"
-                  (valueChange)="source.set($event)"
-                />
+                <app-dropdown label="Fuente de los datos" [options]="sourceOptions()" [value]="source()"
+                  (valueChange)="source.set($event)" />
               </div>
             </div>
             <div class="actions">
@@ -161,14 +133,14 @@
         <div class="heading inline">
           <h2>Estadísticas</h2>
           @if (stats().avisos.length) {
-            <span class="hint" tabindex="0" role="note" aria-label="Avisos sobre las estadísticas">
-              !
-              <span class="hint-pop">
-                @for (aviso of stats().avisos; track aviso) {
-                  <span>{{ aviso }}</span>
-                }
-              </span>
+          <span class="hint" tabindex="0" role="note" aria-label="Avisos sobre las estadísticas">
+            !
+            <span class="hint-pop">
+              @for (aviso of stats().avisos; track aviso) {
+              <span>{{ aviso }}</span>
+              }
             </span>
+          </span>
           }
         </div>
         <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'stats' }" />
@@ -199,22 +171,20 @@
               <div>
                 <h3>
                   Por magnitud
-                  <small
-                    class="sizes"
-                    data-tip="En el mapa, cuanto mayor es la magnitud, más grande es el círculo. Los terremotos sin magnitud se dibujan con un tamaño fijo."
-                  >
+                  <small class="sizes"
+                    data-tip="En el mapa, cuanto mayor es la magnitud, más grande es el círculo. Los terremotos sin magnitud se dibujan con un tamaño fijo.">
                     <i></i><i></i><i></i>tamaño
                   </small>
                 </h3>
                 <ul class="histogram">
                   @for (bar of stats().mag; track bar.label) {
-                    <li [class.zero]="!bar.share" [style.--share]="bar.share" [attr.data-tip]="bar.tip">
-                      <b>{{ bar.count }}</b>
-                      <i></i>
-                      <span>{{ bar.label }}</span>
-                    </li>
+                  <li [class.zero]="!bar.share" [style.--share]="bar.share" [attr.data-tip]="bar.tip">
+                    <b>{{ bar.count }}</b>
+                    <i></i>
+                    <span>{{ bar.label }}</span>
+                  </li>
                   } @empty {
-                    <li class="none">Sin datos</li>
+                  <li class="none">Sin datos</li>
                   }
                 </ul>
               </div>
@@ -222,12 +192,13 @@
                 <h3>Por país</h3>
                 <ol class="ranking">
                   @for (bar of stats().countries; track bar.label) {
-                    <li [style.--share]="bar.share" [attr.data-tip]="bar.tip">
-                      <span>{{ bar.label }}</span>
-                      <b>{{ bar.count }}</b>
-                    </li>
+                  <li [style.--share]="bar.share" [attr.data-tip]="bar.tip" (click)="bar.id && onRankingCountryClick(bar.id)"
+                    [class.clickable]="!!bar.id">
+                    <span>{{ bar.label }}</span>
+                    <b>{{ bar.count }}</b>
+                  </li>
                   } @empty {
-                    <li class="none">Sin datos</li>
+                  <li class="none">Sin datos</li>
                   }
                 </ol>
               </div>
@@ -237,25 +208,24 @@
               <h3>
                 Por profundidad
                 <small
-                  data-tip="La profundidad es la distancia bajo la superficie a la que se originó el terremoto (su foco). Cada círculo del mapa toma el color de su tramo."
-                >
+                  data-tip="La profundidad es la distancia bajo la superficie a la que se originó el terremoto (su foco). Cada círculo del mapa toma el color de su tramo.">
                   color del círculo
                 </small>
               </h3>
               <div class="stack" aria-hidden="true">
                 @for (bar of stats().depth; track bar.label) {
-                  @if (bar.share) {
-                    <i [style.flex-grow]="bar.share" [style.background]="bar.color"></i>
-                  }
+                @if (bar.share) {
+                <i [style.flex-grow]="bar.share" [style.background]="bar.color"></i>
+                }
                 }
               </div>
               <ul class="legend" aria-label="Leyenda del mapa: color según la profundidad">
                 @for (bar of stats().depth; track bar.label) {
-                  <li [attr.data-tip]="bar.tip">
-                    <i [style.background]="bar.color"></i>
-                    <span>{{ bar.label }}</span>
-                    <b>{{ bar.count }}</b>
-                  </li>
+                <li [attr.data-tip]="bar.tip">
+                  <i [style.background]="bar.color"></i>
+                  <span>{{ bar.label }}</span>
+                  <b>{{ bar.count }}</b>
+                </li>
                 }
               </ul>
             </div>
@@ -268,14 +238,11 @@
       <header class="bar">
         <div class="heading inline">
           <h2>Eventos</h2>
-          <span
-            class="tag"
-            [attr.data-tip]="
+          <span class="tag" [attr.data-tip]="
               'Terremotos del periodo. La tabla lista los ' +
               eventRows().length +
               ' más recientes; clic en una fila para ir a él en el globo.'
-            "
-          >
+            ">
             {{ visibleEvents().length }}
           </span>
         </div>
@@ -285,54 +252,42 @@
         <div class="fold-inner">
           <div class="body">
             <div class="tools">
-              <input
-                type="search"
-                placeholder="Buscar lugar, país o id…"
-                [value]="eventSearch()"
-                (input)="onEventSearch($event)"
-                aria-label="Buscar en la lista de eventos"
-              />
-              <app-dropdown
-                label="Orden de la lista"
-                [options]="eventSorts"
-                [value]="eventSort()"
-                (valueChange)="eventSort.set($event)"
-              />
+              <input type="search" placeholder="Buscar lugar, país o id…" [value]="eventSearch()"
+                (input)="onEventSearch($event)" aria-label="Buscar en la lista de eventos" />
+              <app-dropdown label="Orden de la lista" [options]="eventSorts" [value]="eventSort()"
+                (valueChange)="eventSort.set($event)" />
             </div>
             <table>
               <thead>
                 <tr>
                   <th data-tip="Magnitud del terremoto. El color es más cálido cuanto mayor es. ND: sin dato.">Mag.</th>
-                  <th data-tip="Lugar según la fuente del dato; debajo, el país asignado y la hora en tu zona horaria. Clic para ir al punto en el globo.">
+                  <th
+                    data-tip="Lugar según la fuente del dato; debajo, el país asignado y la hora en tu zona horaria. Clic para ir al punto en el globo.">
                     Lugar
                   </th>
                   <th
-                    data-tip="Profundidad del foco bajo la superficie. El punto lleva el mismo color que el círculo del mapa."
-                  >
+                    data-tip="Profundidad del foco bajo la superficie. El punto lleva el mismo color que el círculo del mapa.">
                     Prof.
                   </th>
                 </tr>
               </thead>
               <tbody>
                 @for (row of visibleEvents(); track row.id) {
-                  <tr
-                    class="go"
-                    [title]="'Ir al terremoto · ID ' + row.id"
-                    (click)="focusEvent(row)"
-                  >
-                    <td class="mag" [style.color]="row.magColor">{{ row.mag }}</td>
-                    <td class="where">
-                      <span>{{ row.place }}</span>
-                      <small>{{ row.country }} · {{ row.time }}</small>
-                    </td>
-                    <td class="depth"><i [style.background]="row.color"></i>{{ row.depth }}</td>
-                  </tr>
+                <tr class="go" [title]="'Ir al terremoto · ID ' + row.id" (click)="focusEvent(row)">
+                  <td class="mag" [style.color]="row.magColor">{{ row.mag }}</td>
+                  <td class="where">
+                    <span>{{ row.place }}</span>
+                    <small>{{ row.country }} · {{ row.time }}</small>
+                  </td>
+                  <td class="depth"><i [style.background]="row.color"></i>{{ row.depth }}</td>
+                </tr>
                 } @empty {
-                  <tr>
-                    <td class="empty">
-                      {{ eventRows().length ? 'Ningún terremoto coincide con la búsqueda' : 'Sin terremotos en este periodo' }}
-                    </td>
-                  </tr>
+                <tr>
+                  <td class="empty">
+                    {{ eventRows().length ? 'Ningún terremoto coincide con la búsqueda' : 'Sin terremotos en este
+                    periodo' }}
+                  </td>
+                </tr>
                 }
               </tbody>
             </table>
@@ -344,48 +299,32 @@
 
   <!-- Barra de navegación por pestañas estilo Revolut (liquid glass flotante): solo visible en teléfono (≤600px) -->
   <nav class="mobile-nav" aria-label="Secciones del observatorio">
-    <button
-      type="button"
-      [class.active]="mobileTab() === 'estado'"
-      (click)="setMobileTab('estado')"
-      aria-label="Estado del sistema"
-    >
+    <button type="button" [class.active]="mobileTab() === 'estado'" (click)="setMobileTab('estado')"
+      aria-label="Estado del sistema">
       <!-- Pulso sismográfico / latido -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M3 12h3.5l2.5-6 4 12 3-8 2 4h3" />
       </svg>
       <span>Estado</span>
     </button>
-    <button
-      type="button"
-      [class.active]="mobileTab() === 'filtros'"
-      (click)="setMobileTab('filtros')"
-      aria-label="Filtros"
-    >
+    <button type="button" [class.active]="mobileTab() === 'filtros'" (click)="setMobileTab('filtros')"
+      aria-label="Filtros">
       <!-- Embudo moderno -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 6h16M7 12h10M10 18h4" />
       </svg>
       <span>Filtros</span>
     </button>
-    <button
-      type="button"
-      [class.active]="mobileTab() === 'stats'"
-      (click)="setMobileTab('stats')"
-      aria-label="Estadísticas"
-    >
+    <button type="button" [class.active]="mobileTab() === 'stats'" (click)="setMobileTab('stats')"
+      aria-label="Estadísticas">
       <!-- Analítica / barras estilo Revolut -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M18 20V10M12 20V4M6 20v-6" />
       </svg>
       <span>Stats</span>
     </button>
-    <button
-      type="button"
-      [class.active]="mobileTab() === 'eventos'"
-      (click)="setMobileTab('eventos')"
-      aria-label="Eventos"
-    >
+    <button type="button" [class.active]="mobileTab() === 'eventos'" (click)="setMobileTab('eventos')"
+      aria-label="Eventos">
       <!-- Lista de registros -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
@@ -395,21 +334,16 @@
   </nav>
 
   @if (tip(); as shown) {
-    <div
-      class="tip"
-      role="tooltip"
-      [class.flip]="shown.flip"
-      [style.left.px]="shown.x"
-      [style.top.px]="shown.y"
-    >
-      {{ shown.text }}
-    </div>
+  <div class="tip" role="tooltip" [class.flip]="shown.flip" [style.left.px]="shown.x" [style.top.px]="shown.y">
+    {{ shown.text }}
+  </div>
   }
 
   <div class="rotate-device-prompt" aria-hidden="true">
     <div class="rotate-card">
       <div class="rotate-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+          stroke-linejoin="round">
           <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
           <line x1="12" y1="18" x2="12.01" y2="18" />
         </svg>
