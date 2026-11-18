@@ -276,6 +276,41 @@ A continuación se resume la correspondencia entre los cinco criterios de la rú
 
 ## 10. Licencias y Fuentes de Datos
 
-- **Sismicidad:** [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/) (Dominio público, U.S. Government Work).
-- **Fronteras y Geografía:** [Natural Earth](https://www.naturalearthdata.com/) (Dominio público / Public Domain).
-- **Código del Proyecto:** Desarrollado bajo fines educativos para el Curso de Especialización en Inteligencia Artificial y Big Data (IABD). Licencia MIT.
+### 10.1 Catálogos y Redes Sismológicas Integradas
+
+Para garantizar una cobertura global equilibrada y corregir el sesgo geográfico de detección hacia Norteamérica, el observatorio integra múltiples fuentes y agencias oficiales:
+
+| Red / Agencia | Entidad y Ámbito | Cobertura | Formato / Protocolo | Muestreo | Licencia de los Datos |
+|---|---|---|---|:---:|---|
+| **USGS** | *United States Geological Survey* (EE. UU.) | Mundial ($M \ge 4.0$) y exhaustiva en Norteamérica ($M \ge 0$) | GeoJSON Feed (`all_day.geojson`) y FDSN-WS Event | 60 s | Dominio público ([U.S. Government Work](https://earthquake.usgs.gov/)) |
+| **EMSC** | *European-Mediterranean Seismological Centre* (Europa) | Europa, Mediterráneo y mundial en tiempo real vía redes asociadas (IGN, INGV) | GeoJSON API / REST (`geofon.gfz-potsdam.de`) | 120 s | Creative Commons Attribution 4.0 ([CC BY 4.0](https://www.emsc-csem.org/)) |
+| **ISC** | *International Seismological Centre* (Reino Unido) | Catálogo definitivo consolidado de observatorios nacionales | FDSN-WS Event (texto delimitado) | 1800 s | Acceso abierto para investigación científica ([ISC](http://www.isc.ac.uk/)) |
+| **GeoNet** | *GNS Science & Toka Tū Ake EQC* (Nueva Zelanda) | Nueva Zelanda y región suroeste del Pacífico | FDSN-WS Event | 300 s | Creative Commons Attribution 3.0 NZ ([CC BY 3.0 NZ](https://www.geonet.org.nz/)) |
+| **NRCan** | *Natural Resources Canada* (Canadá) | Red sismográfica nacional de Canadá y zonas árticas | FDSN-WS Event | 600 s | [Open Government Licence - Canada](https://earthquakescanada.nrcan.gc.ca/) |
+| **USP** | *Universidade de São Paulo* (Brasil) | Brasil y plataforma continental sudamericana (Rede Sismográfica Brasileira) | FDSN-WS Event | 900 s | Acceso abierto científico ([USP Moho](http://moho.iag.usp.br/)) |
+| **KAGSR** | *Kamchatka Geophysical Survey* (Rusia) | Península de Kamchatka, Mar de Bering e Islas Kuriles | REST API / JSON | 600 s | Datos abiertos de monitorización sísmica regional |
+
+> **Deduplicación multi-fuente:** Todos los eventos se normalizan a un esquema unificado en UTC. Cuando varias agencias notifican el mismo seísmo con identificadores diferentes, el pipeline aplica una deduplicación espaciotemporal en PostgreSQL ($|\Delta t| \le 16\text{ s}$, $\text{distancia} \le 200\text{ km}$), priorizando agencias primarias sobre agregadores y registrando la correlación en `evento_duplicado` sin pérdida de versiones.
+
+---
+
+### 10.2 Cartografía y Georreferenciación
+
+* **Natural Earth Vector (Admin 0 – Countries):** Fronteras y geometrías vectoriales de 177 países (escala 1:110M) empleadas para el enriquecimiento espacial mediante *Point-in-Polygon* (STRtree de Shapely) y renderizado en el globo 3D. Distribuido bajo [Dominio Público](https://www.naturalearthdata.com/about/terms-of-use/).
+* **OpenStreetMap:** Referencias geográficas y coordenadas de validación. Distribuido bajo licencia abierta [ODbL](https://www.openstreetmap.org/copyright).
+
+---
+
+### 10.3 Componentes y Dependencias de Código Abierto
+
+* **Broker y Transporte Distribuido:** [Apache Kafka](https://kafka.apache.org/) (Apache License 2.0).
+* **Almacenamiento Relacional:** [PostgreSQL](https://www.postgresql.org/) (PostgreSQL License).
+* **Ecosistema Backend (Python 3.12):** `FastAPI` (MIT), `Uvicorn` (BSD-3-Clause), `aiokafka` (Apache 2.0), `asyncpg` (Apache 2.0), `Shapely` (BSD-3-Clause) y `httpx` (BSD-3-Clause).
+* **Frontend SPA y 3D (TypeScript):** `Angular 19` (MIT), `Three.js` (MIT) y `three-globe` (MIT).
+* **Servicios de Red:** `ngrok` (túnel TLS seguro) y `Netlify` (alojamiento Jamstack con persistencia en Blobs).
+
+---
+
+### 10.4 Licencia del Proyecto
+
+El código fuente, esquemas SQL y documentación técnica del **Observatorio de Actividad Sísmica** han sido desarrollados por Álvaro Jiménez Muñoz para el Curso de Especialización en Inteligencia Artificial y Big Data (IABD) y se distribuyen bajo los términos de la **[Licencia MIT](https://opensource.org/licenses/MIT)**.
