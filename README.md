@@ -3,7 +3,7 @@
 USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 
 - **Repositorio:** https://github.com/Almucero/observatorio-sismico  
-- **Panel público (Netlify):** https://observatorio-sismico-almucero.netlify.app  
+- **Panel público (Netlify):** https://observatorio-sismico-minialmucero.netlify.app  
 - **API pública:** Expuesta vía túnel HTTPS ngrok hacia el puerto `8000` local.
 
 ## Documentación del proyecto
@@ -109,7 +109,7 @@ Para sesiones diarias de trabajo o demostraciones una vez instalado:
    cd frontend
    npm start
    ```
-6. **Detener el stack al finalizar:**
+5. **Detener el stack al finalizar:**
    ```bash
    docker compose down
    ```

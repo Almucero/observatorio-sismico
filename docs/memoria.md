@@ -64,7 +64,7 @@ Medición: conteo de un mes con índice **0,167 ms** vs seq scan **1,054 ms** (~
 
 Filtros y capturas: `docs/evidencias/capturas/`.
 
-1. **Océano dominante (2025 M≥4)**: 18 302 eventos; 14 350 sin país. Conclusión: el ranking por país sin categoría «Sin país» sesgaría el análisis.
+1. **Océano dominante (2025 M≥4)**: 18 302 eventos; 13 347 sin país (~72,9 % en océano / fuera de costa). Conclusión: el ranking por país sin categoría «Sin país» sesgaría el análisis.
 2. **Magnitud**: 16 173 en 4–5, 1 984 en 5–6, 145 ≥6. Los ≥6 son raros; las medias globales sin bandas engañan.
 3. **Comparación equivalente**: media diaria 2025 M≥4 ≈ **50,14** (denominador 365 con días cero). Una ventana reciente de 24 h M≥4 debe contrastarse con esa media, avisando si el día actual está incompleto (`periodo.incompleto` / `avisos` en API).
 
@@ -106,7 +106,7 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 
 - Panel: https://observatorio-sismico-almucero.netlify.app  
 - API (túnel): https://jasmine-unpainted-oat.ngrok-free.dev  
-- Durante la defensa: `docker compose up -d` + `ngrok http 127.0.0.1:8000` (si cambia la URL free, actualizar `config.json` y redeploy).  
+- Durante la defensa: `docker compose up -d` + `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev` (al utilizar el dominio estático reservado, la URL es fija y permanente).  
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`
 - Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
 

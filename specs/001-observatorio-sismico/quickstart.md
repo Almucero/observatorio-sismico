@@ -10,7 +10,7 @@ Prerrequisito: `docker compose up --build -d` y API en http://127.0.0.1:8000.
 | Mag null / coords / marítimo | `… evidencia_calidad.py` | `docs/evidencias/calidad.json` |
 | Restart consumidor | `docker compose restart consumer` | `docs/evidencias/restart-consumidor.md` |
 | Replay aislado | `docker compose run --rm --no-deps producer python -m producer.replay --limit 8 --speed 2000` | `docs/evidencias/replay.md` |
-| Túnel down/up | Fase `002` (ngrok) | pendiente publicación |
+| Túnel down/up | Fase `002` (ngrok) | `docs/evidencias/tunel-down-up.md` |
 
 ## Frontend local
 

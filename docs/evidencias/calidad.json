@@ -1,4 +1,4 @@
-{
+﻿{
   "cases": [
     {
       "caso": "no_earthquake",
@@ -21,6 +21,6 @@
       "ok": true
     }
   ],
-  "cuarentena_inserts": 8,
+  "cuarentena_inserts": 12,
   "all_ok": true
 }

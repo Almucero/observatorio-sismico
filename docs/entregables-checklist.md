@@ -26,12 +26,12 @@
 |------|--------|
 | Netlify público | https://observatorio-sismico-almucero.netlify.app |
 | API ngrok | https://jasmine-unpainted-oat.ngrok-free.dev |
-| Mapa + filtros + tabla + stats | OK (188 eventos comprobados) |
+| Globo 3D + filtros + lista eventos + stats | OK (567 eventos en vivo comprobados) |
 | Túnel down/up | `docs/evidencias/tunel-down-up.md` |
 | Captura | `docs/evidencias/capturas/panel-netlify.png` |
 
 ## Procedimiento defensa
 
 1. `docker compose up -d`  
-2. `ngrok http 127.0.0.1:8000` (actualizar `config.json` si cambia la URL)  
+2. `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev`  
 3. Abrir el panel Netlify  

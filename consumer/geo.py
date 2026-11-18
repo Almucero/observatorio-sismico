@@ -15,7 +15,13 @@ KM_PER_DEG = 111.32
 
 @lru_cache(maxsize=1)
 def _countries():
-    path = Path(os.environ.get("PAISES_GEOJSON", "/app/data/paises.geojson"))
+    env_path = os.environ.get("PAISES_GEOJSON")
+    if env_path and Path(env_path).exists():
+        path = Path(env_path)
+    elif Path("/app/data/paises.geojson").exists():
+        path = Path("/app/data/paises.geojson")
+    else:
+        path = Path(__file__).resolve().parent.parent / "frontend" / "public" / "datos" / "paises.geojson"
     data = json.loads(path.read_text(encoding="utf-8"))
     items = []
     for feature in data.get("features", []):

@@ -1,455 +1,626 @@
 {
-    "type":  "FeatureCollection",
-    "metadata":  {
-                     "generated":  1794770271316,
-                     "last_ingestion":  1794770240248,
-                     "mode":  "live",
-                     "count":  21,
-                     "total":  21,
-                     "truncated":  false,
-                     "limit":  5000
-                 },
-    "features":  [
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qisj",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              115.9955,
-                                                              -47.8272,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  6.2,
-                                            "magType":  "mww",
-                                            "place":  "western Indian-Antarctic Ridge",
-                                            "time":  1749338445671,
-                                            "updated":  1755706138040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qiq1",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              24.1669,
-                                                              40.2717,
-                                                              10.093
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.4,
-                                            "magType":  "mww",
-                                            "place":  "6 km WNW of Karyes, Greece",
-                                            "time":  1749300380307,
-                                            "updated":  1755706137040,
-                                            "country_id":  "GRC",
-                                            "country_name":  "Grecia"
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qipm",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -66.8962,
-                                                              -57.2756,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.3,
-                                            "magType":  "mww",
-                                            "place":  "288 km SSE of Ushuaia, Argentina",
-                                            "time":  1749294364640,
-                                            "updated":  1755706137040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qlsz",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              66.9026,
-                                                              -14.9452,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.1,
-                                            "magType":  "mww",
-                                            "place":  "Mid-Indian Ridge",
-                                            "time":  1749283100739,
-                                            "updated":  1755706141040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qinr",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              66.7948,
-                                                              -14.9216,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.5,
-                                            "magType":  "mww",
-                                            "place":  "Mid-Indian Ridge",
-                                            "time":  1749281620295,
-                                            "updated":  1755706137040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qilr",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              147.3749,
-                                                              -5.5494,
-                                                              197.913
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.0,
-                                            "magType":  "mb",
-                                            "place":  "123 km NNW of Finschhafen, Papua New Guinea",
-                                            "time":  1749264700320,
-                                            "updated":  1755706137040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qilg",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -81.1784,
-                                                              13.1213,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.1,
-                                            "magType":  "mww",
-                                            "place":  "33 km SE of Mountain, Colombia",
-                                            "time":  1749262111447,
-                                            "updated":  1755706137040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qiig",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -178.0449,
-                                                              -22.0335,
-                                                              359.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.9,
-                                            "magType":  "mww",
-                                            "place":  "299 km WSW of Houma, Tonga",
-                                            "time":  1749238110995,
-                                            "updated":  1755706136040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qigd",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -70.4039,
-                                                              -26.639,
-                                                              75.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  6.4,
-                                            "magType":  "mww",
-                                            "place":  "45 km SW of Diego de Almagro, Chile",
-                                            "time":  1749230106807,
-                                            "updated":  1755706136040,
-                                            "country_id":  "CHL",
-                                            "country_name":  "Chile"
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qi0w",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -82.6724,
-                                                              5.3502,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.6,
-                                            "magType":  "mww",
-                                            "place":  "297 km S of Burica, Panama",
-                                            "time":  1749082158730,
-                                            "updated":  1755706135040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhzg",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              100.0201,
-                                                              26.3717,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.0,
-                                            "magType":  "mww",
-                                            "place":  "21 km SSE of Jinhua, China",
-                                            "time":  1749069115417,
-                                            "updated":  1755706135040,
-                                            "country_id":  "CHN",
-                                            "country_name":  "China"
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhxk",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              166.1371,
-                                                              -11.9603,
-                                                              70.99
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.0,
-                                            "magType":  "mb",
-                                            "place":  "141 km SSE of Lata, Solomon Islands",
-                                            "time":  1749050870310,
-                                            "updated":  1755706134040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhub",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              131.0108,
-                                                              -3.447,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.2,
-                                            "magType":  "mww",
-                                            "place":  "154 km WSW of Fakfak, Indonesia",
-                                            "time":  1749008586651,
-                                            "updated":  1755706134040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhnr",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              143.4834,
-                                                              41.7865,
-                                                              42.826
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.1,
-                                            "magType":  "mww",
-                                            "place":  "57 km SSE of Hiroo, Japan",
-                                            "time":  1748956708018,
-                                            "updated":  1755381255040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhma",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              25.8273,
-                                                              34.9737,
-                                                              26.858
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.1,
-                                            "magType":  "mww",
-                                            "place":  "8 km ESE of Ierápetra, Greece",
-                                            "time":  1748949994214,
-                                            "updated":  1755381255040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhly",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              155.2729,
-                                                              -4.6824,
-                                                              518.468
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.0,
-                                            "magType":  "mb",
-                                            "place":  "174 km NNW of Kieta, Papua New Guinea",
-                                            "time":  1748947296191,
-                                            "updated":  1755381255040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhjx",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              147.8867,
-                                                              -7.3196,
-                                                              58.863
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.1,
-                                            "magType":  "mb",
-                                            "place":  "84 km S of Finschhafen, Papua New Guinea",
-                                            "time":  1748922601733,
-                                            "updated":  1755381255040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhiq",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              28.1891,
-                                                              36.7258,
-                                                              72.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.8,
-                                            "magType":  "mww",
-                                            "place":  "8 km SSW of İçmeler, Turkey",
-                                            "time":  1748906248209,
-                                            "updated":  1762464775468,
-                                            "country_id":  "TUR",
-                                            "country_name":  "Turquía"
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhba",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -178.1079,
-                                                              -27.6794,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.2,
-                                            "magType":  "mww",
-                                            "place":  "Kermadec Islands region",
-                                            "time":  1748816227325,
-                                            "updated":  1755381253040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qhaf",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              143.6866,
-                                                              41.7431,
-                                                              27.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.8,
-                                            "magType":  "mww",
-                                            "place":  "68 km SSE of Hiroo, Japan",
-                                            "time":  1748803912960,
-                                            "updated":  1755381253040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     },
-                     {
-                         "type":  "Feature",
-                         "id":  "us6000qh6m",
-                         "geometry":  {
-                                          "type":  "Point",
-                                          "coordinates":  [
-                                                              -172.1765,
-                                                              -16.6866,
-                                                              10.0
-                                                          ]
-                                      },
-                         "properties":  {
-                                            "mag":  5.2,
-                                            "magType":  "mb",
-                                            "place":  "191 km ESE of Hihifo, Tonga",
-                                            "time":  1748747184122,
-                                            "updated":  1755381252040,
-                                            "country_id":  null,
-                                            "country_name":  null
-                                        }
-                     }
-                 ]
+  "type": "FeatureCollection",
+  "metadata": {
+    "generated": 1794963364666,
+    "last_ingestion": 1794963326780,
+    "mode": "live",
+    "source": "usgs",
+    "fuentes": [
+      {
+        "source": "usgs",
+        "nombre": "USGS",
+        "cobertura": "Mundial desde magnitud 4; todas las magnitudes en EE. UU.",
+        "last_ingestion": 1794963326780,
+        "intervalo_s": 60,
+        "historico": true,
+        "seleccionada": true
+      },
+      {
+        "source": "geonet",
+        "nombre": "GeoNet",
+        "cobertura": "Nueva Zelanda",
+        "last_ingestion": 1794963219287,
+        "intervalo_s": 300,
+        "historico": true,
+        "seleccionada": false
+      },
+      {
+        "source": "nrcan",
+        "nombre": "NRCan",
+        "cobertura": "Canadá",
+        "last_ingestion": 1794963170442,
+        "intervalo_s": 600,
+        "historico": true,
+        "seleccionada": false
+      },
+      {
+        "source": "usp",
+        "nombre": "USP",
+        "cobertura": "Brasil",
+        "last_ingestion": 1794962583533,
+        "intervalo_s": 900,
+        "historico": true,
+        "seleccionada": false
+      },
+      {
+        "source": "kagsr",
+        "nombre": "KAGSR",
+        "cobertura": "Kamchatka y Kuriles (Rusia)",
+        "last_ingestion": 1794963200575,
+        "intervalo_s": 600,
+        "historico": true,
+        "seleccionada": false
+      },
+      {
+        "source": "emsc",
+        "nombre": "EMSC",
+        "cobertura": "Europa y Mediterráneo; resto del mundo por agencias asociadas",
+        "last_ingestion": 1794963309166,
+        "intervalo_s": 120,
+        "historico": true,
+        "seleccionada": false
+      },
+      {
+        "source": "isc",
+        "nombre": "ISC",
+        "cobertura": "Mundial: boletines de agencias nacionales",
+        "last_ingestion": 1794962629271,
+        "intervalo_s": 1800,
+        "historico": true,
+        "seleccionada": false
+      }
+    ],
+    "count": 21,
+    "total": 21,
+    "truncated": false,
+    "limit": 5000
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "us6000qisj",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          115.9955,
+          -47.8272,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 6.2,
+        "magType": "mww",
+        "place": "western Indian-Antarctic Ridge",
+        "time": 1749338445671,
+        "updated": 1755706138040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qiq1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.1669,
+          40.2717,
+          10.093
+        ]
+      },
+      "properties": {
+        "mag": 5.4,
+        "magType": "mww",
+        "place": "6 km WNW of Karyes, Greece",
+        "time": 1749300380307,
+        "updated": 1755706137040,
+        "country_id": "GRC",
+        "country_name": "Grecia",
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qipm",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -66.8962,
+          -57.2756,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.3,
+        "magType": "mww",
+        "place": "288 km SSE of Ushuaia, Argentina",
+        "time": 1749294364640,
+        "updated": 1755706137040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qlsz",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.9026,
+          -14.9452,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.1,
+        "magType": "mww",
+        "place": "Mid-Indian Ridge",
+        "time": 1749283100739,
+        "updated": 1755706141040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qinr",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          66.7948,
+          -14.9216,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.5,
+        "magType": "mww",
+        "place": "Mid-Indian Ridge",
+        "time": 1749281620295,
+        "updated": 1755706137040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qilr",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          147.3749,
+          -5.5494,
+          197.913
+        ]
+      },
+      "properties": {
+        "mag": 5.0,
+        "magType": "mb",
+        "place": "123 km NNW of Finschhafen, Papua New Guinea",
+        "time": 1749264700320,
+        "updated": 1755706137040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qilg",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -81.1784,
+          13.1213,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.1,
+        "magType": "mww",
+        "place": "33 km SE of Mountain, Colombia",
+        "time": 1749262111447,
+        "updated": 1755706137040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qiig",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -178.0449,
+          -22.0335,
+          359.0
+        ]
+      },
+      "properties": {
+        "mag": 5.9,
+        "magType": "mww",
+        "place": "299 km WSW of Houma, Tonga",
+        "time": 1749238110995,
+        "updated": 1755706136040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qigd",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -70.4039,
+          -26.639,
+          75.0
+        ]
+      },
+      "properties": {
+        "mag": 6.4,
+        "magType": "mww",
+        "place": "45 km SW of Diego de Almagro, Chile",
+        "time": 1749230106807,
+        "updated": 1755706136040,
+        "country_id": "CHL",
+        "country_name": "Chile",
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc",
+          "usp"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qi0w",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -82.6724,
+          5.3502,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.6,
+        "magType": "mww",
+        "place": "297 km S of Burica, Panama",
+        "time": 1749082158730,
+        "updated": 1755706135040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhzg",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.0201,
+          26.3717,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.0,
+        "magType": "mww",
+        "place": "21 km SSE of Jinhua, China",
+        "time": 1749069115417,
+        "updated": 1755706135040,
+        "country_id": "CHN",
+        "country_name": "China",
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhxk",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          166.1371,
+          -11.9603,
+          70.99
+        ]
+      },
+      "properties": {
+        "mag": 5.0,
+        "magType": "mb",
+        "place": "141 km SSE of Lata, Solomon Islands",
+        "time": 1749050870310,
+        "updated": 1755706134040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          131.0108,
+          -3.447,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.2,
+        "magType": "mww",
+        "place": "154 km WSW of Fakfak, Indonesia",
+        "time": 1749008586651,
+        "updated": 1755706134040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhnr",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          143.4834,
+          41.7865,
+          42.826
+        ]
+      },
+      "properties": {
+        "mag": 5.1,
+        "magType": "mww",
+        "place": "57 km SSE of Hiroo, Japan",
+        "time": 1748956708018,
+        "updated": 1755381255040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhma",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.8273,
+          34.9737,
+          26.858
+        ]
+      },
+      "properties": {
+        "mag": 5.1,
+        "magType": "mww",
+        "place": "8 km ESE of Ierápetra, Greece",
+        "time": 1748949994214,
+        "updated": 1755381255040,
+        "country_id": "GRC",
+        "country_name": "Grecia",
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhly",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          155.2729,
+          -4.6824,
+          518.468
+        ]
+      },
+      "properties": {
+        "mag": 5.0,
+        "magType": "mb",
+        "place": "174 km NNW of Kieta, Papua New Guinea",
+        "time": 1748947296191,
+        "updated": 1755381255040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhjx",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          147.8867,
+          -7.3196,
+          58.863
+        ]
+      },
+      "properties": {
+        "mag": 5.1,
+        "magType": "mb",
+        "place": "84 km S of Finschhafen, Papua New Guinea",
+        "time": 1748922601733,
+        "updated": 1755381255040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhiq",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.1891,
+          36.7258,
+          72.0
+        ]
+      },
+      "properties": {
+        "mag": 5.8,
+        "magType": "mww",
+        "place": "8 km SSW of İçmeler, Turkey",
+        "time": 1748906248209,
+        "updated": 1762464775468,
+        "country_id": "TUR",
+        "country_name": "Turquía",
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhba",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -178.1079,
+          -27.6794,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.2,
+        "magType": "mww",
+        "place": "Kermadec Islands region",
+        "time": 1748816227325,
+        "updated": 1755381253040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qhaf",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          143.6866,
+          41.7431,
+          27.0
+        ]
+      },
+      "properties": {
+        "mag": 5.8,
+        "magType": "mww",
+        "place": "68 km SSE of Hiroo, Japan",
+        "time": 1748803912960,
+        "updated": 1755381253040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "us6000qh6m",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -172.1765,
+          -16.6866,
+          10.0
+        ]
+      },
+      "properties": {
+        "mag": 5.2,
+        "magType": "mb",
+        "place": "191 km ESE of Hihifo, Tonga",
+        "time": 1748747184122,
+        "updated": 1755381252040,
+        "country_id": null,
+        "country_name": null,
+        "source": "usgs-fdsn",
+        "otras_fuentes": [
+          "emsc",
+          "isc"
+        ]
+      }
+    }
+  ]
 }
