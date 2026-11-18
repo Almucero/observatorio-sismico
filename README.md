@@ -4,7 +4,7 @@ USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 
 - **Repositorio:** https://github.com/Almucero/observatorio-sismico  
 - **Panel público (Netlify):** https://observatorio-sismico-almucero.netlify.app  
-- **API pública:** Expuesta vía túnel HTTPS (ngrok o Cloudflare) hacia el puerto `8000` local.
+- **API pública:** Expuesta vía túnel HTTPS ngrok hacia el puerto `8000` local.
 
 ## Documentación del proyecto
 
@@ -21,7 +21,6 @@ USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 - **Git**.
 - **Node.js** (v18+) y `npm` (si se va a compilar o servir el frontend Angular en local).
 - **ngrok** (instalable con `winget install ngrok.ngrok` o desde [ngrok.com](https://ngrok.com/download)).
-  - *(Alternativa si la operadora bloquea ngrok: `cloudflared`)*.
 
 ### Paso a paso inicial
 
@@ -49,26 +48,23 @@ USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
    - *Probar API en local:* [http://127.0.0.1:8000/api/salud](http://127.0.0.1:8000/api/salud)
 
 4. **Levantar el túnel HTTPS (exponer `:8000` a Internet):**
-   - **Opción A (Requisito canónico del proyecto - ngrok):**
-     1. Vincula tu cuenta una única vez: `ngrok config add-authtoken TU_TOKEN`
-     2. Inicia el túnel:
-        ```powershell
-        ngrok http 8000
-        ```
-     3. Copia la URL HTTPS asignada (`https://....ngrok-free.dev` o `.ngrok-free.app`).
-   - **Opción B (Alternativa de contingencia - Cloudflare Tunnel):**
-     *Útil si tu operadora de red fija (Movistar, Vodafone, Orange, Digi...) bloquea por DPI/DNS los subdominios de ngrok con `ERR_CONNECTION_CLOSED`.*
-     ```powershell
-     cloudflared tunnel --url http://127.0.0.1:8000
-     ```
-     Copia la URL generada (`https://....trycloudflare.com`).
+   1. Vincula tu cuenta una única vez:
+      ```powershell
+      ngrok config add-authtoken TU_TOKEN
+      ```
+   2. Inicia el túnel con tu dominio estático reservado:
+      ```powershell
+      ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev
+      ```
+   3. Al utilizar el dominio estático asignado, la URL es fija y permanente (`https://jasmine-unpainted-oat.ngrok-free.dev`), por lo que no cambia entre ejecuciones.
 
 5. **Configurar el frontend:**
-   Abre `frontend/public/config.json` e introduce la URL HTTPS de tu túnel:
+   `frontend/public/config.json` ya apunta a la URL fija del túnel y soporta conexión directa en local (`localhost:8000`):
    ```json
    {
      "mode": "api",
-     "apiUrl": "https://TU-URL-DEL-TUNEL",
+     "apiUrl": "https://jasmine-unpainted-oat.ngrok-free.dev",
+     "localApiUrl": "http://127.0.0.1:8000",
      "refreshMs": 60000,
      "skipNgrokWarning": true,
      "dataMode": "live"
@@ -105,11 +101,10 @@ Para sesiones diarias de trabajo o demostraciones una vez instalado:
    ```
 3. **Iniciar el túnel HTTPS (en una ventana de terminal aparte):**
    ```powershell
-   ngrok http 8000
-   # O en su defecto: cloudflared tunnel --url http://127.0.0.1:8000
+   ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev
    ```
-4. **Si cambió la URL del túnel:** actualiza `frontend/public/config.json` y haz commit/push a Netlify o reinicia el servidor local.
-5. **Frontend local (si no usas Netlify):**
+   *(Al ser un dominio estático reservado, la URL nunca cambia y no requiere modificar `config.json` ni realizar commits).*
+4. **Frontend local (si se desea visualizar en local):**
    ```bash
    cd frontend
    npm start

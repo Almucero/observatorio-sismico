@@ -47,27 +47,86 @@ export class DropdownComponent {
     return query ? this.options().filter((o) => plain(o.label).includes(query)) : this.options();
   });
 
+  private lastWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+  private closedAt = 0;
+
+  toggleMenu(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    // Si acaba de cerrarse por light-dismiss en este mismo tap/click, evitar reabrir
+    if (performance.now() - this.closedAt < 250) {
+      return;
+    }
+    if (this.open()) {
+      this.close();
+    } else {
+      this.openMenu();
+    }
+  }
+
+  openMenu(): void {
+    if (this.open()) return;
+    try {
+      this.menu.nativeElement.showPopover();
+    } catch {
+      this.open.set(true);
+    }
+  }
+
+  close(): void {
+    if (this.open()) {
+      try {
+        this.menu.nativeElement.hidePopover();
+      } catch {
+        this.open.set(false);
+      }
+    }
+  }
+
   // El menú es un popover nativo: se dibuja por encima de todo sin que lo recorte el
   // panel, así que hay que colocarlo a mano bajo el botón
   onBeforeToggle(event: Event): void {
     const opening = (event as ToggleEvent).newState === 'open';
     this.open.set(opening);
-    if (!opening) return;
+    if (!opening) {
+      this.closedAt = performance.now();
+      return;
+    }
     this.query.set('');
     this.active.set(Math.max(0, this.options().findIndex((o) => o.value === this.value())));
+    this.updatePosition();
+  }
+
+  private updatePosition(): void {
+    if (typeof window === 'undefined') return;
     const box = this.trigger.nativeElement.getBoundingClientRect();
-    const width = Math.max(box.width, 200);
+    const maxAllowedWidth = window.innerWidth - 16;
+    const width = Math.min(maxAllowedWidth, Math.max(box.width, 200));
     const style = this.menu.nativeElement.style;
     style.width = `${width}px`;
     const fits = box.left + width <= window.innerWidth - 8;
     style.left = `${Math.max(8, fits ? box.left : box.right - width)}px`;
-    style.top = `${box.bottom + 6}px`;
-    style.maxHeight = `${Math.max(120, Math.min(400, window.innerHeight - box.bottom - 18))}px`;
+
+    const spaceBelow = window.innerHeight - box.bottom - 18;
+    const spaceAbove = box.top - 18;
+    if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+      style.top = 'auto';
+      style.bottom = `${window.innerHeight - box.top + 6}px`;
+      style.maxHeight = `${Math.max(120, Math.min(380, spaceAbove))}px`;
+    } else {
+      style.bottom = 'auto';
+      style.top = `${box.bottom + 6}px`;
+      style.maxHeight = `${Math.max(120, Math.min(380, spaceBelow))}px`;
+    }
   }
 
   onToggle(): void {
     if (!this.open()) return;
-    this.search?.nativeElement.focus();
+    // Solo auto-enfocar en pantallas de escritorio (>600px).
+    // En móviles, auto-enfocar dispara el teclado virtual de golpe y provoca saltos de viewport.
+    if (typeof window !== 'undefined' && window.innerWidth > 600) {
+      this.search?.nativeElement.focus();
+    }
     this.revealActive();
   }
 
@@ -78,7 +137,13 @@ export class DropdownComponent {
 
   @HostListener('keydown', ['$event'])
   onKey(event: KeyboardEvent): void {
-    if (!this.open()) return;
+    if (!this.open()) {
+      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+        this.openMenu();
+        event.preventDefault();
+      }
+      return;
+    }
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
     if (step) {
       const last = this.visible().length - 1;
@@ -87,6 +152,9 @@ export class DropdownComponent {
     } else if (event.key === 'Enter') {
       const option = this.visible()[this.active()];
       if (option) this.pick(option);
+    } else if (event.key === 'Escape') {
+      this.close();
+      this.trigger.nativeElement.focus();
     } else {
       return;
     }
@@ -100,8 +168,14 @@ export class DropdownComponent {
   }
 
   @HostListener('window:resize')
-  close(): void {
-    if (this.open()) this.menu.nativeElement.hidePopover();
+  onWindowResize(): void {
+    if (typeof window === 'undefined') return;
+    // En móviles el teclado virtual o la barra de direcciones cambian solo el alto.
+    // Solo cerramos si realmente cambia el ancho de pantalla (giro de pantalla o resize en escritorio).
+    if (window.innerWidth !== this.lastWidth) {
+      this.lastWidth = window.innerWidth;
+      this.close();
+    }
   }
 
   private revealActive(): void {

@@ -27,9 +27,9 @@ ngrok config add-authtoken TU_TOKEN
 
 ### 4. Arrancar túnel (con la API Compose en marcha)
 ```powershell
-ngrok http 8000
+ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev
 ```
-Copia la URL `https://….ngrok-free.app` (o dominio que te dé).
+Tu dominio estático permanente es `https://jasmine-unpainted-oat.ngrok-free.dev`. No cambia entre ejecuciones.
 
 ---
 

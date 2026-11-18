@@ -23,64 +23,70 @@
   </ng-template>
 
   <div class="dock top">
-    <section class="panel panel-estado" [class.collapsed]="collapsed().estado" aria-label="Estado del sistema">
-      <header class="bar">
-        <div class="heading">
-          <p class="eyebrow">Observatorio sísmico · {{ mode() }}</p>
-          <h2>Estado del sistema</h2>
-        </div>
-        <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'estado' }" />
-      </header>
-      <div class="fold-wrap">
-        <div class="fold-inner">
-          <div class="body">
-            <div class="tiles">
-              <div class="tile" data-tip="Resultado de la última consulta de esta página a la API del observatorio.">
-                <b class="state" [attr.data-level]="statusLevel()"><i></i>{{ status() }}</b>
-                <span>Conexión API</span>
+    <div class="panel-col">
+      <section class="panel panel-estado" [class.collapsed]="collapsed().estado" aria-label="Estado del sistema">
+        <header class="bar">
+          <div class="heading">
+            <p class="eyebrow">Observatorio sísmico · {{ mode() }}</p>
+            <h2>Estado del sistema</h2>
+          </div>
+          <ng-container [ngTemplateOutlet]="fold" [ngTemplateOutletContext]="{ $implicit: 'estado' }" />
+        </header>
+        <div class="fold-wrap">
+          <div class="fold-inner">
+            <div class="body">
+              <div class="tiles">
+                <div class="tile" data-tip="Resultado de la última consulta de esta página a la API del observatorio.">
+                  <b class="state" [attr.data-level]="statusLevel()"><i></i>{{ status() }}</b>
+                  <span>Conexión API</span>
+                </div>
+                <div class="tile" data-tip="Terremotos del periodo consultado que están dibujados en el mapa.">
+                  <b>{{ count() }}</b>
+                  <span>En el mapa</span>
+                </div>
+                <div class="tile"
+                  data-tip="Terremotos recibidos con coordenadas no válidas. No se pueden situar y no se dibujan.">
+                  <b>{{ omitted() }}</b>
+                  <span>Descartados</span>
+                </div>
               </div>
-              <div class="tile" data-tip="Terremotos del periodo consultado que están dibujados en el mapa.">
-                <b>{{ count() }}</b>
-                <span>En el mapa</span>
-              </div>
-              <div class="tile"
-                data-tip="Terremotos recibidos con coordenadas no válidas. No se pueden situar y no se dibujan.">
-                <b>{{ omitted() }}</b>
-                <span>Descartados</span>
-              </div>
+              <dl class="rows">
+                <div [attr.data-tip]="
+                    'Última vez que esta página recibió datos de la API. Se vuelve a consultar sola cada ' +
+                    refreshSeconds() +
+                    ' segundos. La API generó esa respuesta: ' +
+                    generated() +
+                    '.'
+                  ">
+                  <dt>Último acceso a la API</dt>
+                  <dd>{{ lastRead() }}</dd>
+                </div>
+                <div [attr.data-tip]="ingestion().tip">
+                  <dt>{{ ingestion().label }}</dt>
+                  <dd>{{ ingestion().value }}</dd>
+                </div>
+                <div
+                  data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria.">
+                  <dt>Periodo consultado</dt>
+                  <dd>{{ period() }}</dd>
+                </div>
+              </dl>
             </div>
-            <dl class="rows">
-              <div [attr.data-tip]="
-                  'Última vez que esta página recibió datos de la API. Se vuelve a consultar sola cada ' +
-                  refreshSeconds() +
-                  ' segundos. La API generó esa respuesta: ' +
-                  generated() +
-                  '.'
-                ">
-                <dt>Último acceso a la API</dt>
-                <dd>{{ lastRead() }}</dd>
-              </div>
-              <div [attr.data-tip]="ingestion().tip">
-                <dt>{{ ingestion().label }}</dt>
-                <dd>{{ ingestion().value }}</dd>
-              </div>
-              <div
-                data-tip="Intervalo de tiempo al que pertenecen los terremotos del mapa, la tabla y las estadísticas. Sin fechas en los filtros son las últimas 24 horas. Las horas están en tu zona horaria.">
-                <dt>Periodo consultado</dt>
-                <dd>{{ period() }}</dd>
-              </div>
-            </dl>
+          </div>
+        </div>
+      </section>
+      @if (warnings().length) {
+      <div class="alerts-wrap" [class.collapsed]="collapsed().estado" [class.mobile-hidden]="mobileTab() && mobileTab() !== 'estado'" role="status">
+        <div class="alerts-inner">
+          <div class="alerts">
+            @for (warning of warnings(); track warning) {
+            <p>{{ warning }}</p>
+            }
           </div>
         </div>
       </div>
-    </section>
-    @if (warnings().length) {
-    <div class="alerts" [class.mobile-hidden]="mobileTab() && mobileTab() !== 'estado'" role="status">
-      @for (warning of warnings(); track warning) {
-      <p>{{ warning }}</p>
       }
     </div>
-    }
 
     <section class="panel panel-filtros" [class.collapsed]="collapsed().filtros" aria-label="Filtros">
       <header class="bar">

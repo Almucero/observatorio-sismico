@@ -26,9 +26,57 @@ html, body {
   position: fixed;
   pointer-events: none;
   translate: 0 0;
+  transition: opacity 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.quake-card { min-width: 196px; }
+.quake-hover-tip.selected {
+  pointer-events: auto !important;
+  border-color: rgba(56, 189, 248, 0.65) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.25) !important;
+}
+
+.quake-card {
+  position: relative;
+  min-width: 210px;
+}
+
+.quake-card-close {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(125, 190, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.9);
+  color: #94a3b8;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quake-card-close:hover {
+  border-color: #38bdf8;
+  color: #fff;
+  background: rgba(56, 189, 248, 0.25);
+}
+
+@media (max-width: 600px) {
+  .quake-hover-tip.selected {
+    left: 50% !important;
+    bottom: 74px !important;
+    top: auto !important;
+    translate: -50% 0 !important;
+    width: calc(100vw - 28px) !important;
+    max-width: 380px !important;
+    z-index: 1100 !important;
+  }
+}
 
 .quake-card strong {
   display: block;

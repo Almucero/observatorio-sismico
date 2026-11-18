@@ -1,6 +1,7 @@
 {
   "mode": "api",
-  "apiUrl": "https://value-racks-gap-require.trycloudflare.com",
+  "apiUrl": "https://jasmine-unpainted-oat.ngrok-free.dev",
+  "localApiUrl": "http://127.0.0.1:8000",
   "refreshMs": 60000,
   "skipNgrokWarning": true,
   "dataMode": "live"

@@ -72,6 +72,7 @@ type StatsResponse = {
 type Config = {
   mode: 'demo' | 'api';
   apiUrl: string;
+  localApiUrl?: string;
   refreshMs: number;
   skipNgrokWarning: boolean;
   dataMode?: 'live' | 'replay';
@@ -121,6 +122,7 @@ type EventRow = {
 };
 type QuakeNode = { core: Mesh; wave: Mesh<CircleGeometry, MeshBasicMaterial> };
 type GlobePoint = {
+  row?: EventRow;
   lat: number;
   lng: number;
   baseSize: number;
@@ -252,6 +254,27 @@ const EMPTY_STATS: StatsView = {
 
 function quakes(count: number): string {
   return count === 1 ? '1 terremoto' : `${count} terremotos`;
+}
+
+function formatElapsed(minutes: number): string {
+  if (minutes < 60) {
+    return minutes === 1 ? '1 min' : `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (hours < 24) {
+    return remMin > 0 ? `${hours} h y ${remMin} min` : `${hours} h`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  if (days < 365) {
+    const dStr = days === 1 ? '1 día' : `${days} días`;
+    return remHours > 0 ? `${dStr} y ${remHours} h` : dStr;
+  }
+  const years = Math.floor(days / 365);
+  const remDays = days % 365;
+  const yStr = years === 1 ? '1 año' : `${years} años`;
+  return remDays > 0 ? `${yStr} y ${remDays === 1 ? '1 día' : `${remDays} días`}` : yStr;
 }
 
 function plain(text: string): string {
@@ -394,8 +417,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       label: s.nombre,
       hint: s.cobertura,
     }));
-    if (options.length <= 1) return [ALL_SOURCES_OPTION, ...options];
-    return [options[0], ALL_SOURCES_OPTION, ...options.slice(1)];
+    return [ALL_SOURCES_OPTION, ...options];
   });
   // Fila de estado sobre la ingesta: de la fuente elegida o, con varias, de la más atrasada
   readonly ingestion = computed(() => {
@@ -457,9 +479,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private dragging = false;
   private hoveringQuake = false;
   private rotateAfter = 0;
+  private savedQuakePov: { lat: number; lng: number; altitude: number } | null = null;
+  private savedCountryPov: { lat: number; lng: number; altitude: number } | null = null;
   private hoverCheckAt = 0;
   private quakeCores: Mesh[] = [];
   private quakeTipEl?: HTMLElement;
+  private selectedQuake: GlobePoint | null = null;
+  private pointerDownPos = { x: 0, y: 0, time: 0 };
   private controller = new AbortController();
   private destroyed = false;
   private config?: Config;
@@ -474,17 +500,33 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   private auraRadius = 0;
   private resizeObserver?: ResizeObserver;
   private onResize = () => this.resizeGlobe();
-  private onPointerDown = () => {
+  private onPointerDown = (event: PointerEvent) => {
+    this.pointerDownPos = { x: event.clientX, y: event.clientY, time: performance.now() };
     this.dragging = true;
-    this.hideQuakeTip();
+    if (!this.selectedQuake) {
+      this.hideQuakeTip();
+    }
   };
-  private onPointerUp = () => {
+  private onPointerUp = (event: PointerEvent) => {
     if (!this.dragging) return;
     this.dragging = false;
-    this.rotateAfter = performance.now() + ROTATE_RESUME_MS;
+    const dx = event.clientX - this.pointerDownPos.x;
+    const dy = event.clientY - this.pointerDownPos.y;
+    const dist = Math.hypot(dx, dy);
+    const duration = performance.now() - this.pointerDownPos.time;
+    if (dist < 10 && duration < 600) {
+      this.handleGlobeTap(event.clientX, event.clientY);
+    } else if (!this.selectedQuake) {
+      this.rotateAfter = performance.now() + ROTATE_RESUME_MS;
+    }
   };
-  private onGlobeLeave = () => this.hideQuakeTip();
+  private onGlobeLeave = () => {
+    if (!this.selectedQuake) {
+      this.hideQuakeTip();
+    }
+  };
   private onGlobeMove = (event: PointerEvent) => {
+    if (this.selectedQuake) return;
     if (this.dragging || !this.globe) {
       this.hideQuakeTip();
       return;
@@ -506,6 +548,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.hoveringQuake = true;
     const tip = this.quakeTipEl;
     if (!tip) return;
+    tip.classList.remove('selected');
     tip.innerHTML = point.label;
     tip.style.display = 'block';
     const pad = 14;
@@ -560,6 +603,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   applyFilters(): void {
     clearTimeout(this.timer);
+    if (this.selectedQuake) {
+      this.selectedQuake = null;
+      this.savedQuakePov = null;
+      this.hideQuakeTip();
+    }
     const country = this.countryId();
     this.appliedCountryId.set(country);
     this.updateCountryHighlight();
@@ -574,12 +622,15 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   resetView(): void {
     if (!this.globe) return;
     this.tip.set(null);
+    const targetPov = this.savedCountryPov ?? {
+      lat: INITIAL_LAT,
+      lng: INITIAL_LNG,
+      altitude: this.initialAltitude(),
+    };
+    this.savedCountryPov = null;
     this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
     this.zone.runOutsideAngular(() => {
-      this.globe?.pointOfView(
-        { lat: INITIAL_LAT, lng: INITIAL_LNG, altitude: this.initialAltitude() },
-        FLY_MS
-      );
+      this.globe?.pointOfView(targetPov, FLY_MS);
     });
   }
 
@@ -592,6 +643,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     if (!this.globe) return;
     const target = this.countryTargets.get(id);
     if (!target) return;
+    if (!this.savedCountryPov) {
+      this.savedCountryPov = this.captureCurrentPov();
+    }
     this.tip.set(null);
     this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
     this.zone.runOutsideAngular(() => {
@@ -606,10 +660,132 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   focusEvent(row: EventRow): void {
     if (!this.globe) return;
     this.tip.set(null);
-    this.rotateAfter = performance.now() + FLY_MS + ROTATE_RESUME_MS;
+    const point = this.points.find((p) => p.row?.id === row.id) ?? {
+      lat: row.lat,
+      lng: row.lng,
+      baseSize: 1,
+      color: row.color,
+      label: this.quakeCard(row),
+      phase: 0,
+      row,
+    };
+    this.selectQuake(point);
+  }
+
+  selectQuake(point: GlobePoint): void {
+    if (!this.savedQuakePov) {
+      this.savedQuakePov = this.captureCurrentPov();
+    }
+    this.selectedQuake = point;
+    this.hoveringQuake = false;
+    this.tip.set(null);
+    this.showQuakeCard(point);
+    this.rotateAfter = Infinity;
     this.zone.runOutsideAngular(() => {
-      this.globe?.pointOfView({ lat: row.lat, lng: row.lng, altitude: FLY_ALTITUDE }, FLY_MS);
+      this.globe?.pointOfView({ lat: point.lat, lng: point.lng, altitude: FLY_ALTITUDE }, FLY_MS);
     });
+  }
+
+  deselectQuake(): void {
+    this.selectedQuake = null;
+    this.hideQuakeTip();
+    const returnPov = this.savedQuakePov;
+    this.savedQuakePov = null;
+    if (returnPov && this.globe) {
+      this.rotateAfter = performance.now() + 1200 + ROTATE_RESUME_MS;
+      this.zone.runOutsideAngular(() => {
+        this.globe?.pointOfView(returnPov, 1200);
+      });
+    } else {
+      this.rotateAfter = performance.now() + ROTATE_RESUME_MS;
+    }
+  }
+
+  private handleGlobeTap(clientX: number, clientY: number): void {
+    const point = this.findQuakeAt(clientX, clientY);
+    if (point) {
+      this.selectQuake(point);
+    } else if (this.selectedQuake) {
+      this.deselectQuake();
+    }
+  }
+
+  private findQuakeAt(clientX: number, clientY: number): GlobePoint | undefined {
+    if (!this.globe) return;
+    const el = this.globeHost.nativeElement;
+    const rect = el.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.globe.camera() as PerspectiveCamera);
+    const hit = this.raycaster.intersectObjects(this.quakeCores, false)[0];
+    if (hit?.object?.userData?.['point']) {
+      return hit.object.userData['point'] as GlobePoint;
+    }
+    const camera = this.globe.camera() as PerspectiveCamera;
+    const toCamera = camera.position.clone().normalize();
+    const thresholdPx =
+      typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+        ? 28
+        : 14;
+    let bestDist = thresholdPx;
+    let bestPoint: GlobePoint | undefined;
+    for (const point of this.points) {
+      const { x, y, z } = this.globe.getCoords(point.lat, point.lng, 0);
+      const normal = new Vector3(x, y, z).normalize();
+      if (normal.dot(toCamera) < 0.1) continue;
+      const screen = this.globe.getScreenCoords(point.lat, point.lng, 0.01);
+      const dist = Math.hypot(screen.x - clientX, screen.y - clientY);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPoint = point;
+      }
+    }
+    return bestPoint;
+  }
+
+  private showQuakeCard(point: GlobePoint): void {
+    const tip = this.quakeTipEl;
+    if (!tip) return;
+    const row = point.row ?? this.eventRows().find((r) => r.id === point.row?.id);
+    tip.innerHTML = row ? this.quakeCard(row, true) : point.label;
+    tip.classList.add('selected');
+    tip.style.display = 'block';
+
+    const closeBtn = tip.querySelector('.quake-card-close');
+    closeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.deselectQuake();
+    });
+
+    this.updateSelectedQuakeTipPos();
+  }
+
+  private updateSelectedQuakeTipPos(): void {
+    if (!this.selectedQuake || !this.globe || !this.quakeTipEl) return;
+    if (typeof window !== 'undefined' && window.innerWidth <= 600) {
+      return;
+    }
+    const screen = this.globe.getScreenCoords(
+      this.selectedQuake.lat,
+      this.selectedQuake.lng,
+      0.015
+    );
+    const tip = this.quakeTipEl;
+    const pad = 16;
+    const width = tip.offsetWidth || 230;
+    const height = tip.offsetHeight || 160;
+
+    let left = screen.x + pad;
+    if (left + width > window.innerWidth - 12) {
+      left = screen.x - width - pad;
+    }
+    left = Math.max(12, Math.min(window.innerWidth - width - 12, left));
+
+    let top = screen.y - height / 2;
+    top = Math.max(50, Math.min(window.innerHeight - height - 12, top));
+
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
   }
 
   setMobileTab(tab: PanelId): void {
@@ -639,6 +815,23 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       return 3.1;
     }
     return 2.15;
+  }
+
+  private captureCurrentPov(): { lat: number; lng: number; altitude: number } | null {
+    if (!this.globe) return null;
+    const pov = this.globe.pointOfView();
+    if (
+      pov &&
+      typeof pov.lat === 'number' &&
+      Number.isFinite(pov.lat) &&
+      typeof pov.lng === 'number' &&
+      Number.isFinite(pov.lng) &&
+      typeof pov.altitude === 'number' &&
+      Number.isFinite(pov.altitude)
+    ) {
+      return { lat: pov.lat, lng: pov.lng, altitude: pov.altitude };
+    }
+    return null;
   }
 
   clearFilters(): void {
@@ -680,15 +873,16 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       .atmosphereColor('#3b9dff')
       .atmosphereAltitude(0.3)
       .polygonsData([])
-      .polygonCapColor(() => '#0a1628')
-      .polygonSideColor(() => '#0a1628')
+      .polygonCapColor(() => '')
+      .polygonSideColor(() => '')
+      .polygonCapCurvatureResolution(3)
+      .polygonAltitude(0.004)
       .polygonStrokeColor((feat: object) => {
         const id = (feat as { properties?: { ADM0_A3?: string } }).properties?.ADM0_A3;
         const selected = this.appliedCountryId();
         if (id && id === selected) return '#38bdf8';
         return selected ? 'rgba(125, 211, 252, 0.22)' : 'rgba(125, 211, 252, 0.45)';
       })
-      .polygonAltitude(0.004)
       .polygonsTransitionDuration(0)
       .objectsData([])
       .objectAltitude(0.01)
@@ -715,6 +909,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.quakeTipEl = document.createElement('div');
     this.quakeTipEl.className = 'float-tooltip-kap quake-hover-tip';
     this.quakeTipEl.style.display = 'none';
+    this.quakeTipEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.quakeTipEl.addEventListener('click', (e) => e.stopPropagation());
     document.body.appendChild(this.quakeTipEl);
 
     this.globe.pointOfView({ lat: INITIAL_LAT, lng: INITIAL_LNG, altitude: this.initialAltitude() }, 0);
@@ -808,7 +1004,11 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   private hideQuakeTip(): void {
     this.hoveringQuake = false;
-    if (this.quakeTipEl) this.quakeTipEl.style.display = 'none';
+    if (this.selectedQuake) return;
+    if (this.quakeTipEl) {
+      this.quakeTipEl.classList.remove('selected');
+      this.quakeTipEl.style.display = 'none';
+    }
   }
 
   private animate = (): void => {
@@ -819,14 +1019,18 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const halfFov = Math.tan((camera.fov * Math.PI) / 360);
     const now = performance.now();
     const time = now / 1000;
-    // El giro se detiene al arrastrar o al tener el ratón sobre un terremoto
+    // El giro se detiene si hay un terremoto seleccionado, al arrastrar o al tener el ratón sobre un terremoto
     const controls = this.globe.controls();
-    controls.autoRotate = !this.dragging && !this.hoveringQuake && now > this.rotateAfter;
+    controls.autoRotate =
+      !this.selectedQuake && !this.dragging && !this.hoveringQuake && now > this.rotateAfter;
     controls.zoomToCursor =
       Math.abs(camera.position.y) < camera.position.length() * POLAR_ZOOM_LIMIT;
     this.animateGlow(time, altitude, halfFov);
     this.animateQuakes(time, altitude, halfFov);
     this.placeLabels(altitude, camera);
+    if (this.selectedQuake) {
+      this.updateSelectedQuakeTipPos();
+    }
   };
 
   // Radio en píxeles casi constante: grandes de lejos y algo menores al acercar
@@ -966,6 +1170,12 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       const countries = await this.readJson<FeatureCollection>('datos/paises.geojson');
       const features = countries.features ?? [];
       for (const feat of features) {
+        if (feat.properties?.['ADM0_A3'] === 'ATA' && feat.geometry?.type === 'MultiPolygon') {
+          const mp = feat.geometry.coordinates as number[][][][];
+          feat.geometry.coordinates = mp.map((poly) =>
+            poly.map((ring) => ring.filter((p) => p[1] > -89.5))
+          );
+        }
         const props = feat.properties;
         const code = String(props?.['ADM0_A3'] ?? '');
         const lat = Number(props?.['LABEL_Y']);
@@ -1013,6 +1223,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       }
       const config = await this.readJson<Config>('config.json');
       if (!['demo', 'api'].includes(config.mode)) throw new Error('Modo inválido');
+      if (
+        config.mode === 'api' &&
+        config.localApiUrl &&
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ) {
+        config.apiUrl = config.localApiUrl;
+      }
       this.config = config;
       this.refreshSeconds.set(Math.round(Math.max(30000, Number(config.refreshMs) || 60000) / 1000));
       const replay = config.dataMode === 'replay';
@@ -1066,7 +1284,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     );
     if (!late.length) return '';
     const minutes = Math.max(1, Math.round(Math.max(...late.map(age)) / 60000));
-    return `Datos desactualizados: la última ingesta fue hace ${minutes} min.`;
+    return `Datos desactualizados: la última ingesta fue hace ${formatElapsed(minutes)}.`;
   }
 
   private isBaseQuery(): boolean {
@@ -1294,10 +1512,13 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return text.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
   }
 
-  private quakeCard(row: EventRow): string {
+  private quakeCard(row: EventRow, isSelected = false): string {
     const shown = (value: string) => (value === NO_DATA ? 'Sin dato' : value);
     return [
       '<div class="quake-card">',
+      isSelected
+        ? '<button type="button" class="quake-card-close" aria-label="Cerrar ficha">×</button>'
+        : '',
       `<strong>${this.escape(row.place)}</strong>`,
       '<dl>',
       `<dt>Magnitud</dt><dd class="mag" style="color: ${row.magColor}">${shown(row.mag)}</dd>`,
@@ -1401,6 +1622,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       };
       rows.push(row);
       points.push({
+        row,
         lat,
         lng: lon,
         baseSize:

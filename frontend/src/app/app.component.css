@@ -472,14 +472,49 @@ h3 small {
   font-variant-numeric: tabular-nums;
 }
 
-/* Avisos colgados bajo el panel: siguen visibles con el panel plegado */
-.alerts {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
+/* Columna de estado y sus avisos vinculados */
+.panel-col {
+  display: flex;
+  flex-direction: column;
   width: var(--panel-w);
+  pointer-events: none;
+}
+
+.panel-col > * {
+  pointer-events: auto;
+}
+
+/* Animación de avisos: acompañan el pliegue/despliegue del panel de estado */
+.alerts-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-top: 8px;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    grid-template-rows 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.alerts-wrap.collapsed {
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}
+
+.alerts-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.alerts {
   display: grid;
   gap: 6px;
+  width: 100%;
   pointer-events: auto;
 }
 
@@ -1119,7 +1154,8 @@ tbody tr.go:hover .where span {
     -webkit-overflow-scrolling: touch;
   }
 
-  .panel {
+  .panel,
+  .panel-col {
     width: 100%;
     max-width: none;
     border-radius: 16px;
@@ -1545,16 +1581,26 @@ tbody tr.go:hover .where span {
   }
 
   /* Avisos de API: salen ARRIBA del panel de estado en sí, como tarjeta flotante externa (SOLO en Estado) */
-  .alerts.mobile-hidden {
+  .panel-col,
+  .alerts-wrap,
+  .alerts-inner {
+    display: contents !important;
+  }
+
+  .alerts.mobile-hidden,
+  .alerts-wrap.mobile-hidden {
     display: none !important;
   }
 
   .stage:not([data-mobile-tab="estado"]) .dock.top .alerts,
-  .stage:not([data-mobile-tab="estado"]) .alerts {
+  .stage:not([data-mobile-tab="estado"]) .dock.top .alerts-wrap,
+  .stage:not([data-mobile-tab="estado"]) .alerts,
+  .stage:not([data-mobile-tab="estado"]) .alerts-wrap {
     display: none !important;
   }
 
-  .stage[data-mobile-tab="estado"] .dock.top .alerts {
+  .stage[data-mobile-tab="estado"] .dock.top .alerts,
+  .stage[data-mobile-tab="estado"] .dock.top .alerts-wrap {
     display: flex !important;
     order: -1 !important;
     margin: 0 !important;

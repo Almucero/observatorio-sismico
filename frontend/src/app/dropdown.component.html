@@ -1,50 +1,26 @@
-<button
-  #trigger
-  type="button"
-  class="trigger"
-  aria-haspopup="listbox"
-  [attr.popovertarget]="menuId"
-  [attr.aria-label]="label()"
-  [attr.aria-expanded]="open()"
->
+<button #trigger type="button" class="trigger" aria-haspopup="listbox" [attr.aria-label]="label()"
+  [attr.aria-expanded]="open()" (click)="toggleMenu($event)">
   <span>{{ selected()?.short ?? selected()?.label ?? '—' }}</span>
-  <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+  <svg viewBox="0 0 12 12" aria-hidden="true">
+    <path d="M3 4.5 6 7.5 9 4.5" />
+  </svg>
 </button>
-<div
-  #menu
-  popover
-  class="menu"
-  [id]="menuId"
-  (beforetoggle)="onBeforeToggle($event)"
-  (toggle)="onToggle()"
->
+<div #menu popover class="menu" [id]="menuId" (beforetoggle)="onBeforeToggle($event)" (toggle)="onToggle()">
   @if (searchable()) {
-    <input
-      #search
-      type="text"
-      placeholder="Buscar…"
-      autocomplete="off"
-      [value]="query()"
-      [attr.aria-label]="'Buscar: ' + label()"
-      (input)="onSearch($event)"
-    />
+  <input #search type="text" placeholder="Buscar…" autocomplete="off" [value]="query()"
+    [attr.aria-label]="'Buscar: ' + label()" (input)="onSearch($event)" />
   }
   <ul role="listbox" [attr.aria-label]="label()">
     @for (option of visible(); track option.value; let i = $index) {
-      <li
-        role="option"
-        [class.active]="i === active()"
-        [attr.aria-selected]="option.value === value()"
-        (click)="pick(option)"
-        (mousemove)="active.set(i)"
-      >
-        <span>{{ option.label }}</span>
-        @if (option.hint) {
-          <small>{{ option.hint }}</small>
-        }
-      </li>
+    <li role="option" [class.active]="i === active()" [attr.aria-selected]="option.value === value()"
+      (click)="pick(option)" (mousemove)="active.set(i)">
+      <span>{{ option.label }}</span>
+      @if (option.hint) {
+      <small>{{ option.hint }}</small>
+      }
+    </li>
     } @empty {
-      <li class="none">Sin resultados</li>
+    <li class="none">Sin resultados</li>
     }
   </ul>
 </div>
