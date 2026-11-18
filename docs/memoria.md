@@ -127,7 +127,7 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`
 - Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
 
-### Flujo de datos y decisión técnica para la defensa / presentación en vídeo
+### Flujo de datos y decisión técnica para la defensa (explicación individual)
 
 **1. Recorrido de un evento:**
 1. *Extracción:* El productor consulta el feed GeoJSON de USGS cada 60 s, parsea las features y consulta la tabla `publicado` para descartar versiones ya emitidas.

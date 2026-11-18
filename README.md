@@ -9,7 +9,7 @@ USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 ## Documentación del proyecto
 
 - Índice: [`docs/README.md`](docs/README.md) · Norma: [`docs/requisitos/`](docs/requisitos/README.md)  
-- Memoria: [`docs/memoria.md`](docs/memoria.md) · Evidencias: [`docs/evidencias/`](docs/evidencias/)  
+- Memoria: [`docs/memoria.md`](docs/memoria.md) · Evidencias: [`docs/evidencias/`](docs/evidencias/README.md)  
 - Despliegue: [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) · Checklist: [`docs/entregables-checklist.md`](docs/entregables-checklist.md)
 
 ---
