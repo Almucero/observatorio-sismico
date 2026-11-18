@@ -1,4 +1,4 @@
-# Quickstart — pruebas §11 (local)
+# Quickstart — pruebas apartado 11 (local)
 
 Prerrequisito: `docker compose up --build -d` y API en http://127.0.0.1:8000.
 

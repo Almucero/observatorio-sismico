@@ -1,4 +1,4 @@
-# Evidencia: túnel down / up (§11)
+# Evidencia: prueba de tolerancia a corte y recuperación del túnel (apartado 11)
 
 Fecha UTC: 2026-11-16
 

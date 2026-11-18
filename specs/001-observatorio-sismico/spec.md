@@ -32,7 +32,7 @@ Arrancar Compose; el productor detecta un terremoto o revisión en USGS; Kafka t
 
 Distinguir nuevo, repetición idéntica, revisión posterior y versión antigua tardía (secuencia del FAQ pregunta 12).
 
-**Why this priority**: Núcleo de Calidad/Modelado y pruebas §11.
+**Why this priority**: Núcleo de Calidad/Modelado y pruebas apartado 11.
 
 **Independent Test**: Secuencia E1/E2 reproduce recuentos esperados.
 
@@ -80,7 +80,7 @@ Carga histórica (propuesta: 2025, M≥4, earthquake; zona opcional documentada)
 
 Reproducción acelerada por Kafka, aislada, etiquetada REPRODUCCIÓN, fechas originales intactas.
 
-**Why this priority**: Defensa y pruebas §11.
+**Why this priority**: Defensa y pruebas apartado 11.
 
 **Independent Test**: Replay visible en intervalo/aislamiento correctos con etiqueta.
 
@@ -95,7 +95,7 @@ Reproducción acelerada por Kafka, aislada, etiquetada REPRODUCCIÓN, fechas ori
 
 Mapa (base), filtros, tabla, distribuciones, leyenda/nulos, estado (lectura, generación, última ingesta), aviso desactualizado/fallo.
 
-**Why this priority**: Enunciado §8.
+**Why this priority**: Enunciado apartado 8.
 
 **Independent Test**: Recorrido manual del panel frente a API local.
 
@@ -137,20 +137,20 @@ Netlify + ngrok HTTPS, CORS, recuperación al reabrir túnel.
 
 ### Functional Requirements
 
-- **FR-001**: System MUST ejecutar cinco servicios Compose (productor, kafka, consumidor, postgres, api) según `docs/requisitos/ENUNCIADO.md` §2.
-- **FR-002**: Productor MUST consultar `all_day.geojson` ~cada 60 s y publicar novedades/revisiones por `id`+`updated` persistidos (§5).
+- **FR-001**: System MUST ejecutar cinco servicios Compose (productor, kafka, consumidor, postgres, api) según `docs/requisitos/ENUNCIADO.md` apartado 2.
+- **FR-002**: Productor MUST consultar `all_day.geojson` ~cada 60 s y publicar novedades/revisiones por `id`+`updated` persistidos (apartado 5).
 - **FR-003**: Mensajes Kafka MUST usar clave = event id y campos `source`, `ingested_at`, `mode`, evento original.
-- **FR-004**: Consumidor MUST validar, transformar, enriquecer (país) y persistir idempotente; offset tras commit PG (§6–7).
+- **FR-004**: Consumidor MUST validar, transformar, enriquecer (país) y persistir idempotente; offset tras commit PG (apartado 6–7).
 - **FR-005**: System MUST conservar cuarentena duradera para rechazos.
-- **FR-006**: System MUST cargar histórico anual manejable sin truncar silenciosamente el tope 20k (§4.2); propuesta 2025 M≥4 earthquake.
+- **FR-006**: System MUST cargar histórico anual manejable sin truncar silenciosamente el tope 20k (apartado 4.2); propuesta 2025 M≥4 earthquake.
 - **FR-007**: API MUST implementar `GET /api/eventos`, `GET /api/salud`, `GET /api/estadisticas` según `docs/requisitos/CONTRATO-API.md`.
-- **FR-008**: Panel MUST cubrir mapa, filtros, tabla, gráficos/distribuciones, estado y comparación (§8).
-- **FR-009**: System MUST ofrecer replay acelerado aislado y etiquetado REPRODUCCIÓN (§11).
+- **FR-008**: Panel MUST cubrir mapa, filtros, tabla, gráficos/distribuciones, estado y comparación (apartado 8).
+- **FR-009**: System MUST ofrecer replay acelerado aislado y etiquetado REPRODUCCIÓN (apartado 11).
 - **FR-010**: Entrega MUST incluir `.env.example`, dependencias fijadas, SQL, README reproducible y memoria/notebook con evidencias de rúbrica (`GUIA-ENTREGABLES.md`).
 - **FR-011**: Frontend MUST basarse en el material Angular entregado (integrado en este repo); MUST NOT reinventar cartografía base sin justificación.
-- **FR-012**: Código MUST seguir constitución §V (sencillez + comentarios ES con criterio).
-- **FR-013**: System MUST conservar GeoJSON original/metadatos de extracción con retención definida (§5).
-- **FR-014**: Comparación histórica MUST usar filtros equivalentes; denominador con días cero; aviso de periodo reciente incompleto (§8).
+- **FR-012**: Código MUST seguir constitución apartado V (sencillez + comentarios ES con criterio).
+- **FR-013**: System MUST conservar GeoJSON original/metadatos de extracción con retención definida (apartado 5).
+- **FR-014**: Comparación histórica MUST usar filtros equivalentes; denominador con días cero; aviso de periodo reciente incompleto (apartado 8).
 - **FR-015**: Requisitos del proyecto MUST residir en `docs/requisitos/`; el desarrollo MUST NOT exigir carpetas externas.
 
 ### Key Entities
@@ -159,8 +159,8 @@ Netlify + ngrok HTTPS, CORS, recuperación al reabrir túnel.
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**: Las pruebas de `ENUNCIADO.md` §11 tienen evidencia (SQL, log o captura).
-- **SC-002**: Cada criterio de rúbrica §13 tiene evidencias de nivel sobresaliente.
+- **SC-001**: Las pruebas de `ENUNCIADO.md` apartado 11 tienen evidencia (SQL, log o captura).
+- **SC-002**: Cada criterio de rúbrica apartado 13 tiene evidencias de nivel sobresaliente.
 - **SC-003**: `docker compose up --build -d` levanta los cinco servicios siguiendo el README del repo.
 - **SC-004**: Panel modo API muestra datos procesados (no demo estático ni USGS directo) en local.
 - **SC-005**: Memoria/notebook completa según `GUIA-ENTREGABLES.md`.

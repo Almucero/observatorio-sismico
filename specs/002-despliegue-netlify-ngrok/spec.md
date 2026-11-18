@@ -8,7 +8,7 @@
 
 **Input**: Separar el despliegue público (Netlify + túnel ngrok) de la feature 001 del pipeline local.
 
-**Requisitos canónicos**: `docs/requisitos/ENUNCIADO.md` (§9 publicación), `CONTRATO-API.md` (CORS/ngrok), `GUIA-ENTREGABLES.md`. Ante conflicto prevalece el enunciado.
+**Requisitos canónicos**: `docs/requisitos/ENUNCIADO.md` (apartado 9 publicación), `CONTRATO-API.md` (CORS/ngrok), `GUIA-ENTREGABLES.md`. Ante conflicto prevalece el enunciado.
 
 **Dependencia**: `specs/001-observatorio-sismico/` debe estar operativa en local (API + panel).
 
@@ -33,7 +33,7 @@ Un visitante abre la URL de Netlify, carga el SPA Angular y consulta la API prop
 
 Durante la demostración, ngrok expone solo la API; Kafka y PostgreSQL no son públicos.
 
-**Why this priority**: Enunciado §9; seguridad y reproducibilidad de la defensa.
+**Why this priority**: Enunciado apartado 9; seguridad y reproducibilidad de la defensa.
 
 **Independent Test**: Arrancar ngrok hacia `http://127.0.0.1:8000` (o `http://api:8000` en red Compose); comprobar HTTPS externo → API.
 
@@ -46,7 +46,7 @@ Durante la demostración, ngrok expone solo la API; Kafka y PostgreSQL no son p�
 
 ### User Story 3 - Fallo y recuperación del túnel (Priority: P2)
 
-El panel tolera que el túnel caiga y se recupere, como pide §11.
+El panel tolera que el túnel caiga y se recupere, como pide apartado 11.
 
 **Why this priority**: Prueba de aceptación explícita; evidencia de rúbrica.
 
@@ -85,7 +85,7 @@ El panel tolera que el túnel caiga y se recupere, como pide §11.
 ### Measurable Outcomes
 
 - **SC-001**: Existe URL pública del panel que, con túnel activo, muestra eventos procesados (no demo estático).
-- **SC-002**: Evidencia documentada de corte y reapertura del túnel (§11).
+- **SC-002**: Evidencia documentada de corte y reapertura del túnel (apartado 11).
 - **SC-003**: Ningún secreto de ngrok/Netlify aparece en el repositorio.
 - **SC-004**: Kafka y PostgreSQL siguen solo en `127.0.0.1` / red Docker interna.
 

@@ -1,6 +1,6 @@
 # Evidencias de pruebas
 
-Artefactos generados al verificar el pipeline (rúbrica / §11).
+Artefactos generados al verificar el pipeline frente a la rúbrica oficial y las pruebas de aceptación.
 
 | Prueba | Cómo reproducir | Resultado |
 |--------|-----------------|-----------|

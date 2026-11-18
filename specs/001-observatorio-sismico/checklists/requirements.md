@@ -22,7 +22,7 @@
 ## Claridad
 
 - [x] CHK013 MUST en constitución y FR
-- [x] CHK014 Edge cases §11
+- [x] CHK014 Edge cases apartado 11
 - [x] CHK015 Ampliaciones opcionales no sustituyen el mínimo
 - [x] CHK016 Sin dependencias de rutas externas al repo en spec/reglas
 

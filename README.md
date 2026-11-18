@@ -31,7 +31,6 @@ Para dar respuesta rigurosa a esta cuestión, el sistema combina:
 
 | Recurso | Destino / Acceso | Descripción |
 |---|---|---|
-| **Vídeo de defensa (YouTube)** | [youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc) | Grabación audiovisual completa (14:42, 1.35x) con timestamps por bloques temáticos. |
 | **Repositorio oficial** | [github.com/Almucero/observatorio-sismico](https://github.com/Almucero/observatorio-sismico) | Código fuente, configuración Docker, esquemas SQL y documentación. |
 | **Panel público (Netlify)** | [observatorio-sismico-alvaro.netlify.app](https://observatorio-sismico-alvaro.netlify.app) | SPA pública con globo 3D, filtros, métricas y modo resiliencia (*fallback offline*). |
 | **API pública (ngrok)** | `https://jasmine-unpainted-oat.ngrok-free.dev` | Túnel seguro HTTPS hacia el servicio FastAPI local (`:8000`). |
@@ -74,7 +73,7 @@ Terremotos/
     ├── USO-SPECKIT.md                 <-- Metodología y trazabilidad con Spec Kit
     ├── requisitos/                    <-- Normativa oficial del proyecto
     │   ├── README.md                  <-- Índice de requisitos oficiales
-    │   ├── ENUNCIADO.md               <-- Enunciado formal y rúbrica oficial (§13)
+    │   ├── ENUNCIADO.md               <-- Enunciado formal y rúbrica oficial (apartado 13)
     │   ├── CONTRATO-API.md            <-- Especificación de endpoints GeoJSON y estadísticas
     │   ├── GUIA-ENTREGABLES.md        <-- Estructura de entrega y criterios de evaluación
     │   ├── FAQ-ALUMNADO.md            <-- Preguntas frecuentes y aclaraciones de diseño
@@ -92,7 +91,7 @@ Terremotos/
 ### ¿Qué documento consultar según la necesidad?
 
 - **Para entender la norma, rúbrica y contrato:** Consultar [`docs/requisitos/README.md`](docs/requisitos/README.md) y [`docs/requisitos/ENUNCIADO.md`](docs/requisitos/ENUNCIADO.md).
-- **Para evaluar los 5 criterios de la rúbrica (Nivel Sobresaliente):** Leer [`docs/memoria.md`](docs/memoria.md) (extracción §1, diccionario §2, calidad §3, modelado §4, análisis e insights §5, complejidad y costes §6).
+- **Para evaluar los 5 criterios de la rúbrica (Nivel Sobresaliente):** Leer [`docs/memoria.md`](docs/memoria.md) (extracción en apartado 1, diccionario en 2, calidad en 3, modelado en 4, análisis e insights en 5, complejidad y costes en 6).
 - **Para verificar la lista final de comprobación:** Revisar [`docs/entregables-checklist.md`](docs/entregables-checklist.md).
 - **Para reproducir el despliegue en Netlify y ngrok:** Seguir [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
 - **Para comprobar las pruebas de aceptación y fallos controlados:** Explorar [`docs/evidencias/README.md`](docs/evidencias/README.md).
@@ -261,38 +260,21 @@ docker compose run --rm --no-deps producer python -m producer.replay --limit 50 
 
 ---
 
-## 9. Mapeo de Evidencias de Evaluación (Rúbrica §13)
+## 9. Mapeo de Evidencias de Evaluación (Rúbrica oficial)
 
 A continuación se resume la correspondencia entre los cinco criterios de la rúbrica oficial (nivel **Sobresaliente, 9–10**) y sus evidencias comprobables en el repositorio:
 
 | Criterio | Requisito de Rúbrica | Evidencia en el Repositorio | Ubicación Detallada |
 |---|---|---|---|
-| **1. Extracción** | Carga continua y masiva, tipado estricto, unidades y gestión de cuotas. | Ingesta de USGS (`all_day.geojson`), FDSN 2025 (18.302 sismos) y 6 fuentes adicionales con backoff exponencial. | [`docs/memoria.md` §1](docs/memoria.md#1-extracción-y-procedencia) · [`sql/03_consulta_fdsn.sql`](sql/03_consulta_fdsn.sql) |
-| **2. Calidad** | Análisis completo en 6 dimensiones con acciones de limpieza y cuarentena. | Validación de completitud, unicidad, validez, consistencia, actualidad y exactitud. Aislamiento de anomalías sin descarte ciego. | [`docs/memoria.md` §3](docs/memoria.md#3-calidad-6-dimensiones--acciones) · [`docs/evidencias/calidad.json`](docs/evidencias/calidad.json) |
-| **3. Modelado** | Modelo relacional optimizado, claves, integración geográfica e idempotencia. | Esquema con separación de hechos y versiones (`evento_actual`, `evento_version`). Índices B-Tree compuestos y Point-in-Polygon espacial. | [`docs/memoria.md` §4](docs/memoria.md#4-modelo-conceptual--lógico--físico) · [`sql/01_schema.sql`](sql/01_schema.sql) |
-| **4. Análisis** | Agregaciones temporales, distribuciones, comparación histórica y $\ge 3$ conclusiones. | Ventanas fijas de 1h UTC, distribución de magnitud/profundidad, comparación de 24h vs. media 2025 y 3 conclusiones fundamentadas. | [`docs/memoria.md` §5](docs/memoria.md#5-análisis-3-conclusiones) · [`docs/evidencias/capturas/`](docs/evidencias/capturas/) |
-| **5. Reflexión** | Complejidad algorítmica ($O$), mediciones en 3 tamaños, escalado a $10^8$ y costes. | Coste formal de 3 operaciones clave, benchmarks empíricos en 3 volúmenes, proyección a 100M filas, desglose de costes y 3 mejoras. | [`docs/memoria.md` §6](docs/memoria.md#6-complejidad-mediciones-costes-mejoras) · [`docs/entregables-checklist.md`](docs/entregables-checklist.md) |
+| **1. Extracción** | Carga continua y masiva, tipado estricto, unidades y gestión de cuotas. | Ingesta de USGS (`all_day.geojson`), FDSN 2025 (18.302 sismos) y 6 fuentes adicionales con backoff exponencial. | [`docs/memoria.md` (apartado 1)](docs/memoria.md#1-extracción-y-procedencia) · [`sql/03_consulta_fdsn.sql`](sql/03_consulta_fdsn.sql) |
+| **2. Calidad** | Análisis completo en 6 dimensiones con acciones de limpieza y cuarentena. | Validación de completitud, unicidad, validez, consistencia, actualidad y exactitud. Aislamiento de anomalías sin descarte ciego. | [`docs/memoria.md` (apartado 3)](docs/memoria.md#3-calidad-6-dimensiones--acciones) · [`docs/evidencias/calidad.json`](docs/evidencias/calidad.json) |
+| **3. Modelado** | Modelo relacional optimizado, claves, integración geográfica e idempotencia. | Esquema con separación de hechos y versiones (`evento_actual`, `evento_version`). Índices B-Tree compuestos y Point-in-Polygon espacial. | [`docs/memoria.md` (apartado 4)](docs/memoria.md#4-modelo-conceptual--lógico--físico) · [`sql/01_schema.sql`](sql/01_schema.sql) |
+| **4. Análisis** | Agregaciones temporales, distribuciones, comparación histórica y $\ge 3$ conclusiones. | Ventanas fijas de 1h UTC, distribución de magnitud/profundidad, comparación de 24h vs. media 2025 y 3 conclusiones fundamentadas. | [`docs/memoria.md` (apartado 5)](docs/memoria.md#5-análisis-3-conclusiones) · [`docs/evidencias/capturas/`](docs/evidencias/capturas/) |
+| **5. Reflexión** | Complejidad algorítmica ($O$), mediciones en 3 tamaños, escalado a $10^8$ y costes. | Coste formal de 3 operaciones clave, benchmarks empíricos en 3 volúmenes, proyección a 100M filas, desglose de costes y 3 mejoras. | [`docs/memoria.md` (apartado 6)](docs/memoria.md#6-complejidad-mediciones-costes-mejoras) · [`docs/entregables-checklist.md`](docs/entregables-checklist.md) |
 
 ---
 
-## 10. Guion para la Defensa Oral y Presentación en Vídeo
-
-Para la grabación del vídeo o defensa ante el tribunal ([`GUIA-ENTREGABLES.md` §3.3](docs/requisitos/GUIA-ENTREGABLES.md#33-explicación-individual)):
-
-1. **Recorrido del evento de principio a fin:**
-   - *Extracción:* El productor extrae el feed de USGS y comprueba `publicado` para evitar reenvíos.
-   - *Transporte:* Kafka transporta el mensaje en `terremotos.live` con partición por clave `event_id` y acuse `acks=all`.
-   - *Validación y Cuarentena:* El consumidor verifica tipos y desvía eventos no sísmicos a `cuarentena`.
-   - *Enriquecimiento Espacial:* Cruce espacial Point-in-Polygon (STRtree) con Natural Earth asignando código `ADM0_A3` o `null` si es oceánico.
-   - *Persistencia Transaccional:* Inserción atómica en `evento_version` y upsert condicional en `evento_actual`.
-   - *Commit Manual:* El offset en Kafka se confirma únicamente tras el commit en base de datos.
-   - *Visualización:* FastAPI sirve los datos vía ngrok hacia el panel Angular en Netlify para su renderizado 3D interactivo.
-2. **Decisión técnica propia a destacar:**
-   - **Semántica At-Least-Once con Idempotencia Transaccional:** Se prescindió de transacciones distribuidas complejas (XA/2PC) combinando el commit manual tras escritura en base de datos con una clave compuesta `(event_id, updated)` y un upsert condicional en SQL. Esto garantiza tolerancia absoluta ante caídas de procesos sin duplicar conteos ni corromper agregaciones.
-
----
-
-## 11. Licencias y Fuentes de Datos
+## 10. Licencias y Fuentes de Datos
 
 - **Sismicidad:** [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/) (Dominio público, U.S. Government Work).
 - **Fronteras y Geografía:** [Natural Earth](https://www.naturalearthdata.com/) (Dominio público / Public Domain).

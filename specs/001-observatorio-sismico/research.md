@@ -18,13 +18,13 @@
 
 **Decision**: Persistido (PostgreSQL u otro volumen), no solo RAM.
 
-**Rationale**: Enunciado §5 — debe sobrevivir reinicios.
+**Rationale**: Enunciado apartado 5 — debe sobrevivir reinicios.
 
 ## R4. Geografía
 
 **Decision**: Shapely/GeoPandas sobre `frontend/public/datos/paises.geojson`.
 
-**Rationale**: Enunciado §4.3; misma fuente que el mapa.
+**Rationale**: Enunciado apartado 4.3; misma fuente que el mapa.
 
 ## R5. Agregaciones
 

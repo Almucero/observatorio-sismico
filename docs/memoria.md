@@ -6,7 +6,7 @@ El observatorio responde: **¿qué sismicidad (live e histórica) hay, dónde y 
 
 Flujo: productor USGS → Kafka → consumidor (valida, PIP país, idempotencia) → PostgreSQL → API FastAPI → panel Angular. Alcance histórico: **2025, mundial, M≥4, `eventtype=earthquake`**.
 
-Ampliación opcional (§10): el mismo productor consulta además otras fuentes regionales y mundiales para corregir el sesgo de cobertura del feed de USGS. Con `EXTRA_SOURCES=` vacío el sistema queda en el mínimo del enunciado; el panel y la API usan USGS por defecto.
+Ampliación opcional (apartado 10): el mismo productor consulta además otras fuentes regionales y mundiales para corregir el sesgo de cobertura del feed de USGS. Con `EXTRA_SOURCES=` vacío el sistema queda en el mínimo del enunciado; el panel y la API usan USGS por defecto.
 
 ## 1. Extracción y procedencia
 
@@ -102,7 +102,7 @@ Top terrestre orientativo: China, Chile, Indonesia (filtros mismos M≥4 año 20
 2. *Caché precomputada de fronteras simplificadas:* Mantener en memoria el árbol STRtree serializado para acelerar arranques en frío del consumidor.
 3. *Vistas materializadas de agregación:* Automatizar un refresco periódico de estadísticas históricas si el tráfico de consultas concurrentes a la API creciera.
 
-## 7. Evidencias §11
+## 7. Evidencias de pruebas de aceptación (apartado 11)
 
 | Prueba | Esperado | Observado | Evidencia |
 |--------|----------|-----------|-----------|
@@ -129,7 +129,7 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 - **Captura panel:** `docs/evidencias/capturas/panel-netlify.png`
 - **Resiliencia offline:** Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
 
-### Flujo de datos y decisión técnica para la defensa (explicación individual)
+### Flujo de datos de extremo a extremo y decisión técnica de diseño
 
 **1. Recorrido de un evento:**
 1. *Extracción:* El productor consulta el feed GeoJSON de USGS cada 60 s, parsea las features y consulta la tabla `publicado` para descartar versiones ya emitidas.
@@ -153,6 +153,6 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 
 **Resultado.** Histórico 2025 M≥4: 18 302 USGS sin cambios; con todas las fuentes, 27 413 filas únicas. ~38 k enlaces de duplicado; 0 residuales dentro del umbral tras reaplicar el emparejado. En vivo, con «Todas las fuentes», EE. UU. deja de dominar el ranking. Detalle en `docs/evidencias/fuentes-adicionales.md`.
 
-**Muestras equivalentes.** Cada fuente tiene su histórico 2025 M≥4. La API calcula la media de 2025 con el mismo filtro `source` y marca `filtros_equivalentes` solo si todas las fuentes elegidas tienen histórico y `min_mag ≥ 4`. Las conclusiones de §5 no cambian: usan 2025 USGS M≥4.
+**Muestras equivalentes.** Cada fuente tiene su histórico 2025 M≥4. La API calcula la media de 2025 con el mismo filtro `source` y marca `filtros_equivalentes` solo si todas las fuentes elegidas tienen histórico y `min_mag ≥ 4`. Las conclusiones del apartado 5 no cambian: usan 2025 USGS M≥4.
 
 **Límites.** África y el interior de Brasil/Siberia siguen casi vacíos (poca sismicidad y sin catálogo abierto en tiempo real). ISC llega con retraso. Las magnitudes mezclan escalas. Un enlace de duplicado no se deshace si una revisión posterior separa los avisos. El replay solo reproduce versiones de USGS.

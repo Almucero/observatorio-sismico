@@ -14,7 +14,7 @@ Pipeline local Docker alineado a `docs/requisitos/ENUNCIADO.md`: USGS → produc
 
 **Storage**: PostgreSQL + volúmenes; Kafka con retención limitada.
 
-**Testing**: Pruebas §11 documentadas + unitarias de validación/mapeo; replay controlado.
+**Testing**: Pruebas apartado 11 documentadas + unitarias de validación/mapeo; replay controlado.
 
 **Target Platform**: Docker Desktop (Windows u otro host del alumno).
 
