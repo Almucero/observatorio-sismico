@@ -3,7 +3,7 @@
 USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
 
 - **Repositorio:** https://github.com/Almucero/observatorio-sismico  
-- **Panel público (Netlify):** https://observatorio-sismico-minialmucero.netlify.app  
+- **Panel público (Netlify):** https://observatorio-sismico-almucero.netlify.app  
 - **API pública:** Expuesta vía túnel HTTPS ngrok hacia el puerto `8000` local.
 
 ## Documentación del proyecto
@@ -81,10 +81,10 @@ USGS → Kafka → PostgreSQL → FastAPI → Angular (Big Data / RA1).
      ```
      Abre en el navegador: [http://localhost:4200](http://localhost:4200)
    - **En producción (Netlify):**
-     Sube los cambios a Git; Netlify re-desplegará automáticamente:
+     El panel ya está desplegado y configurado con el dominio estático permanente en [https://observatorio-sismico-almucero.netlify.app](https://observatorio-sismico-almucero.netlify.app). Si se modifica algún archivo del frontend o la configuración, basta con subir los cambios a Git y Netlify re-desplegará automáticamente:
      ```bash
-     git add public/config.json
-     git commit -m "Actualizar apiUrl del túnel"
+     git add frontend/
+     git commit -m "Actualizar frontend"
      git push origin main
      ```
 

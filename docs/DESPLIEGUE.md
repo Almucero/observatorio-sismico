@@ -48,11 +48,11 @@ Tu dominio estático permanente es `https://jasmine-unpainted-oat.ngrok-free.dev
 4. Deploy.
 
 ### 3. URL del sitio
-Copia `https://ALGO.netlify.app` (o dominio propio).
+El panel se encuentra publicado y operativo en:
+**`https://observatorio-sismico-almucero.netlify.app`**
 
-### 4. Qué me tienes que pasar (en el chat)
-1. **Authtoken de ngrok** (o confirma que ya hiciste `ngrok config add-authtoken` en tu PC).  
-2. **URL HTTPS de ngrok** cuando el túnel esté activo (o dímelo y lo arranco yo si el token está en `.env`).  
-3. **URL de Netlify** (`https://….netlify.app`) para ponerla en `CORS_ORIGINS`.
-
-Con eso configuro CORS, `config.json` de entrega y dejo evidencias de túnel down/up.
+### 4. Resumen de configuración aplicada
+1. **Authtoken de ngrok:** Configurado localmente en `.env` (protegido por `.gitignore`, nunca subido al repositorio).
+2. **URL HTTPS del túnel:** Dominio estático dev permanente `https://jasmine-unpainted-oat.ngrok-free.dev` apuntando a `:8000`.
+3. **Frontend (`frontend/public/config.json`):** Configurado con `apiUrl` apuntando al túnel y `localApiUrl` para desarrollo directo en local.
+4. **CORS:** Autorizado en FastAPI para el origen exacto de Netlify y orígenes de desarrollo (`http://localhost:4200` y `http://127.0.0.1:4200`).

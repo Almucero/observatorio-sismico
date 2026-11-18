@@ -72,18 +72,35 @@ Top terrestre orientativo: China, Chile, Indonesia (filtros mismos M≥4 año 20
 
 ## 6. Complejidad, mediciones, costes, mejoras
 
+### Complejidad teórica de operaciones clave
+
+1. **Búsqueda y control de versiones por `event_id`:** En el productor y consumidor, la búsqueda en memoria mediante diccionario o conjunto hash ofrece coste medio **$O(1)$** ($O(N)$ en el peor caso con colisiones); en PostgreSQL, la comprobación de clave primaria e índice único requiere **$O(\log N)$** mediante B-Tree, frente a los **$O(N)$** que supondría un recorrido secuencial de la tabla.
+2. **Integración espacial (Point-in-Polygon):** La asignación de país mediante el índice espacial `STRtree` (R-tree) de Shapely indexa las geometrías de los 177 países y resuelve la pertenencia en **$O(\log M)$** de media (siendo $M=177$), descartando polígonos lejanos por su bounding box antes de evaluar el polígono exacto con `prepared.covers()`, frente al coste **$O(M)$** de evaluar todos los vértices secuencialmente.
+3. **Agregación por ventanas temporales:** Las consultas de la API filtran por rango `event_time BETWEEN start AND end`. Con el índice B-Tree sobre `event_time`, el coste de localización es **$O(\log N + K)$** (donde $K$ es el número de eventos en la ventana), evitando el escaneo secuencial **$O(N)$** de toda la tabla.
+
 | Tamaño | Operación | Tiempo | Memoria / tamaño |
 |--------|-----------|--------|------------------|
-| Pequeño | PK `event_id` | 0,063 ms | fila puntual |
-| Medio | Mes 2025 con índice tiempo | 0,167 ms | 1413 filas |
-| Grande relativo | Mismo mes sin índice | 1,054 ms | seq ~18k |
-| Almacenamiento | tablas | — | actual ~5,1 MB; versiones ~20 MB |
+| Pequeño (1 fila) | PK `event_id` | 0,063 ms | Fila puntual |
+| Medio (1.413 filas) | Mes 2025 con índice tiempo | 0,167 ms | ~280 kB transferidos |
+| Grande relativo (~18k) | Mismo mes sin índice (Seq Scan) | 1,054 ms | Seq Scan ~18k filas |
+| Almacenamiento real | PostgreSQL | — | `evento_actual` ~5,1 MB; `evento_version` ~20 MB |
 
-A 10⁸ filas: particionar por tiempo, BRIN/BTREE, API paginada (`truncated`).
+**Escalabilidad a $10^8$ filas:** Con 100 millones de terremotos, un único índice B-Tree superaría la memoria RAM disponible. La solución requeriría:
+1. Particionado declarativo por rangos temporales (particiones mensuales o trimestrales).
+2. Índices BRIN (Block Range Index) para la columna `event_time` al ser naturalmente ordenada por inserción (ahorro de espacio >95% frente a B-Tree).
+3. Tablas de resumen o vistas materializadas para los agregados horarios y diarios.
+4. Paginación obligatoria con cursor en la API para no desbordar la memoria de transporte (`metadata.truncated = true`).
 
-Costes: PC+Docker, tiempo de desarrollo, almacenamiento de `payload_json`, cuotas USGS/ngrok/Netlify (free ≠ coste cero).
+**Costes de infraestructura y desarrollo:**
+- *Hardware y energía:* Equipo anfitrión local (PC con CPU multinúcleo y 16–32 GB RAM); consumo eléctrico adicional estimado del stack Docker en ~0,05 kW extra × sesión de 4 h = 0,20 kWh (~0,04 € a 0,20 €/kWh).
+- *Almacenamiento:* ~25–30 MB en disco para un año histórico y live en PostgreSQL; volumen persistente `pgdata`.
+- *Servicios externos:* Cuotas gratuitas de USGS FDSN (respetando intervalos de cortesía y límites de 20k por petición), ngrok (plan gratuito con dominio dev estático reservado) y Netlify (plan gratuito de hosting estático y Blobs). *Coste de suscripción 0 €, pero requiere diseño cuidadoso para respetar cuotas.*
+- *Tiempo de desarrollo:* Estimado en ~35–40 horas hombre de análisis, modelado, pipelines Kafka, testing e interfaz visual.
 
-Mejoras: (1) subdividir FDSN si un mes → 20k; (2) cachear polígonos simplificados; (3) materializar agregados diarios si el panel crece.
+**Propuestas de mejora técnica:**
+1. *Subdivisión adaptativa de FDSN:* Si un mes superase los 20.000 eventos (por ejemplo tras un megaterremoto y réplicas), particionar automáticamente en quincenas o semanas sin intervención manual.
+2. *Caché precomputada de fronteras simplificadas:* Mantener en memoria el árbol STRtree serializado para acelerar arranques en frío del consumidor.
+3. *Vistas materializadas de agregación:* Automatizar un refresco periódico de estadísticas históricas si el tráfico de consultas concurrentes a la API creciera.
 
 ## 7. Evidencias §11
 
@@ -109,6 +126,20 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 - Durante la defensa: `docker compose up -d` + `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev` (al utilizar el dominio estático reservado, la URL es fija y permanente).  
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`
 - Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
+
+### Flujo de datos y decisión técnica para la defensa / presentación en vídeo
+
+**1. Recorrido de un evento:**
+1. *Extracción:* El productor consulta el feed GeoJSON de USGS cada 60 s, parsea las features y consulta la tabla `publicado` para descartar versiones ya emitidas.
+2. *Transporte:* El mensaje se envía al topic `terremotos.live` con la clave `event_id` y `acks="all"`. Al recibir el ACK de Kafka, se actualiza el estado en PostgreSQL.
+3. *Consumo y limpieza:* El consumidor lee el mensaje, valida coordenadas finitas y tipo (`earthquake`), desviando eventos no válidos a `cuarentena`.
+4. *Enriquecimiento:* Se calcula el país mediante operación espacial Point-in-Polygon (STRtree) con las geometrías de Natural Earth, asignando el código `ADM0_A3` o `null` si es marítimo.
+5. *Persistencia:* Dentro de una transacción PostgreSQL, se inserta la versión inmutable en `evento_version`, se actualiza `evento_actual` condicionalmente (`WHERE updated < EXCLUDED.updated`) y se resuelve la posible duplicidad entre fuentes.
+6. *Commit:* Solo tras el éxito de la transacción SQL, el consumidor confirma manualmente el offset a Kafka.
+7. *Exposición y visualización:* FastAPI consulta PostgreSQL y sirve GeoJSON y estadísticas agregadas a través del túnel ngrok hacia el panel Angular en Netlify, que renderiza los sismos en 3D sobre el globo.
+
+**2. Decisión técnica de diseño propia:**
+> *Semántica At-Least-Once con Idempotencia Transaccional:* Se desactivó el autocommit de Kafka (`enable_auto_commit=False`) para confirmar offsets únicamente tras confirmar la persistencia en PostgreSQL. Para tolerar reenvíos sin duplicar conteos ni corromper agregaciones, la base de datos aplica una clave primaria compuesta `(event_id, updated)` con `ON CONFLICT DO NOTHING` en el histórico de versiones y un upsert condicional en `evento_actual`. De este modo se obtiene consistencia exacta ante fallos sin requerir transacciones distribuidas XA ni duplicar almacenamiento.
 
 ## 10. Ampliación: más fuentes (opcional)
 
