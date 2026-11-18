@@ -49,12 +49,12 @@ Para dar respuesta rigurosa a esta cuestión, el sistema combina:
 
 | Minuto | Bloque temático | Contenido cubierto |
 |:---:|---|---|
-| **`00:00`** | **Introducción y Metodología** | Presentación, estructura del repositorio, portal documental y adaptación de Spec Kit para agentes de IA. |
-| **`02:54`** | **Arquitectura y Pipeline de Datos** | Composición de Docker (5 servicios aislados con Kafka), Productor (feed live y FDSN 2025) y Consumidor (validación, cuarentena, deduplicación y enriquecimiento espacial con Natural Earth). |
-| **`06:27`** | **Persistencia, API y Frontend** | Esquemas SQL en PostgreSQL (separación de histórico y `replay`), API FastAPI, túnel ngrok y frontend en Angular 19 con tolerancia a fallos mediante Netlify Blobs. |
-| **`09:56`** | **Demostración en Vivo (Panel Web)** | Interacción 3D con Three.js, filtrado espacial/temporal, comparativa multi-fuente (sismos en España) y prueba real de resiliencia apagando el stack backend en vivo. |
-| **`12:58`** | **Demostración del Modo Replay** | Activación y ejecución acelerada de simulación histórica en canal y esquema aislados (`replay.*`). |
-| **`13:21`** | **Rúbrica de Evaluación y Cierre** | Justificación detallada de los 5 criterios de la rúbrica oficial (Extracción, Calidad, Modelado, Análisis, Reflexión y Costes) para optar al Sobresaliente. |
+| [**`00:00`**](https://youtu.be/vaq_z8r1Dyc?t=0) | **Introducción y Metodología** | Presentación, estructura del repositorio, portal documental y adaptación de Spec Kit para agentes de IA. |
+| [**`02:54`**](https://youtu.be/vaq_z8r1Dyc?t=174) | **Arquitectura y Pipeline de Datos** | Composición de Docker (5 servicios aislados con Kafka), Productor (feed live y FDSN 2025) y Consumidor (validación, cuarentena, deduplicación y enriquecimiento espacial con Natural Earth). |
+| [**`06:27`**](https://youtu.be/vaq_z8r1Dyc?t=387) | **Persistencia, API y Frontend** | Esquemas SQL en PostgreSQL (separación de histórico y `replay`), API FastAPI, túnel ngrok y frontend en Angular 19 con tolerancia a fallos mediante Netlify Blobs. |
+| [**`09:56`**](https://youtu.be/vaq_z8r1Dyc?t=596) | **Demostración en Vivo (Panel Web)** | Interacción 3D con Three.js, filtrado espacial/temporal, comparativa multi-fuente (sismos en España) y prueba real de resiliencia apagando el stack backend en vivo. |
+| [**`12:58`**](https://youtu.be/vaq_z8r1Dyc?t=778) | **Demostración del Modo Replay** | Activación y ejecución acelerada de simulación histórica en canal y esquema aislados (`replay.*`). |
+| [**`13:21`**](https://youtu.be/vaq_z8r1Dyc?t=801) | **Rúbrica de Evaluación y Cierre** | Justificación detallada de los 5 criterios de la rúbrica oficial (Extracción, Calidad, Modelado, Análisis, Reflexión y Costes) para optar al Sobresaliente. |
 
 ---
 
