@@ -121,7 +121,7 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 
 ## 9. Publicación (defensa)
 
-- Panel: https://observatorio-sismico-almucero.netlify.app  
+- Panel: https://observatorio-sismico-alvaro.netlify.app  
 - API (túnel): https://jasmine-unpainted-oat.ngrok-free.dev  
 - Durante la defensa: `docker compose up -d` + `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev` (al utilizar el dominio estático reservado, la URL es fija y permanente).  
 - Captura panel: `docs/evidencias/capturas/panel-netlify.png`

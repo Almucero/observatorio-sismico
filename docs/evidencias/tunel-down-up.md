@@ -4,7 +4,7 @@ Fecha UTC: 2026-11-16
 
 ## Condiciones
 
-- Panel: https://observatorio-sismico-almucero.netlify.app  
+- Panel: https://observatorio-sismico-alvaro.netlify.app  
 - Túnel: `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev`  
 - Backend Compose: cinco servicios healthy; luego `docker compose stop` + parada de ngrok
 

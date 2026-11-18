@@ -12,7 +12,7 @@ Fecha: 2026-11-15
 
 ## CORS
 
-`CORS_ORIGINS` incluye `https://observatorio-sismico-almucero.netlify.app` y `http://localhost:4200`.
+`CORS_ORIGINS` incluye `https://observatorio-sismico-alvaro.netlify.app` y `http://localhost:4200`.
 
 ## Dominio estático
 

@@ -4,10 +4,10 @@
 > Pipeline distribuido de ingesta en streaming, enriquecimiento geoespacial, persistencia transaccional y visualización 3D interactiva de terremotos.
 
 [![GitHub](https://img.shields.io/badge/GitHub-Almucero%2Fobservatorio--sismico-blue?logo=github)](https://github.com/Almucero/observatorio-sismico)
-[![Netlify Status](https://img.shields.io/badge/Netlify-Desplegado-00C7B7?logo=netlify)](https://observatorio-sismico-almucero.netlify.app)
+[![Netlify Status](https://img.shields.io/badge/Netlify-Desplegado-00C7B7?logo=netlify)](https://observatorio-sismico-alvaro.netlify.app)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-5%20Servicios-2496ED?logo=docker)](compose.yaml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-OpenAPI%203.1-009688?logo=fastapi)](http://127.0.0.1:8000/api/salud)
-[![Angular](https://img.shields.io/badge/Angular-19%20%2B%20Three.js-DD0031?logo=angular)](https://observatorio-sismico-almucero.netlify.app)
+[![Angular](https://img.shields.io/badge/Angular-19%20%2B%20Three.js-DD0031?logo=angular)](https://observatorio-sismico-alvaro.netlify.app)
 
 ---
 
@@ -31,7 +31,7 @@ Para dar respuesta rigurosa a esta cuestión, el sistema combina:
 | Recurso | Destino / Acceso | Descripción |
 |---|---|---|
 | **Repositorio oficial** | [github.com/Almucero/observatorio-sismico](https://github.com/Almucero/observatorio-sismico) | Código fuente, configuración Docker, esquemas SQL y documentación. |
-| **Panel público (Netlify)** | [observatorio-sismico-almucero.netlify.app](https://observatorio-sismico-almucero.netlify.app) | SPA pública con globo 3D, filtros, métricas y modo resiliencia (*fallback offline*). |
+| **Panel público (Netlify)** | [observatorio-sismico-alvaro.netlify.app](https://observatorio-sismico-alvaro.netlify.app) | SPA pública con globo 3D, filtros, métricas y modo resiliencia (*fallback offline*). |
 | **API pública (ngrok)** | `https://jasmine-unpainted-oat.ngrok-free.dev` | Túnel seguro HTTPS hacia el servicio FastAPI local (`:8000`). |
 | **Salud de la API (local)** | [http://127.0.0.1:8000/api/salud](http://127.0.0.1:8000/api/salud) | Comprobación de conectividad, última ingesta y estado de fuentes. |
 
@@ -188,7 +188,7 @@ ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev
 *(Al utilizar el dominio dev estático asignado, la URL nunca cambia y no requiere reconfigurar ni recompilar el frontend).*
 
 #### 5. Abrir el panel frontend
-- **En producción (Netlify):** Abrir directamente [https://observatorio-sismico-almucero.netlify.app](https://observatorio-sismico-almucero.netlify.app).
+- **En producción (Netlify):** Abrir directamente [https://observatorio-sismico-alvaro.netlify.app](https://observatorio-sismico-alvaro.netlify.app).
 - **En local (opcional):**
   ```bash
   cd frontend
@@ -211,7 +211,7 @@ docker compose up -d
 ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev
 
 # 3. Abrir el panel en el navegador
-# https://observatorio-sismico-almucero.netlify.app
+# https://observatorio-sismico-alvaro.netlify.app
 ```
 
 Para detener el stack al finalizar la jornada:

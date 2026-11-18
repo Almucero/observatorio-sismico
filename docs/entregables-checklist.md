@@ -24,7 +24,7 @@
 
 | Ítem | Estado |
 |------|--------|
-| Netlify público | https://observatorio-sismico-almucero.netlify.app |
+| Netlify público | https://observatorio-sismico-alvaro.netlify.app |
 | API ngrok | https://jasmine-unpainted-oat.ngrok-free.dev |
 | Globo 3D + filtros + lista eventos + stats | OK (567 eventos en vivo comprobados) |
 | Túnel down/up | `docs/evidencias/tunel-down-up.md` |

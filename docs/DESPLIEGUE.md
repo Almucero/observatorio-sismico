@@ -49,7 +49,7 @@ Tu dominio estático permanente es `https://jasmine-unpainted-oat.ngrok-free.dev
 
 ### 3. URL del sitio
 El panel se encuentra publicado y operativo en:
-**`https://observatorio-sismico-almucero.netlify.app`**
+**`https://observatorio-sismico-alvaro.netlify.app`**
 
 ### 4. Resumen de configuración aplicada
 1. **Authtoken de ngrok:** Configurado localmente en `.env` (protegido por `.gitignore`, nunca subido al repositorio).
