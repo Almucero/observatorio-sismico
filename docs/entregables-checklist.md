@@ -24,15 +24,18 @@
 
 | Ítem | Estado |
 |------|--------|
+| Vídeo de defensa (YouTube) | [youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc) (14:42, 1.35x) |
 | Netlify público | https://observatorio-sismico-alvaro.netlify.app |
 | API ngrok | https://jasmine-unpainted-oat.ngrok-free.dev |
 | Globo 3D + filtros + lista eventos + stats | OK (567 eventos en vivo comprobados) |
 | Túnel down/up | `docs/evidencias/tunel-down-up.md` |
 | Captura | `docs/evidencias/capturas/panel-netlify.png` |
+| Miniatura vídeo | `docs/evidencias/capturas/miniatura-video.jpg` |
 
 ## 4. Lista final de comprobación canónica (GUIA-ENTREGABLES §3.4)
 
 - [x] **Acceso al repositorio:** Público y accesible en https://github.com/Almucero/observatorio-sismico.
+- [x] **Vídeo de defensa en YouTube:** Grabación oficial completa (14:42, 1.35x) publicada en [youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc) con marcas de tiempo organizadas y justificación de los 5 criterios de la rúbrica.
 - [x] **Arranque limpio:** `README.md` documenta requisitos y arranque reproducible paso a paso.
 - [x] **Cinco servicios obligatorios:** `compose.yaml` define `kafka`, `postgres`, `producer`, `consumer` y `api`.
 - [x] **Configuración y dependencias:** `requirements.txt`, `package.json`, `package-lock.json`, `Dockerfile`, `sql/` y `.env.example` incluidos sin credenciales reales.

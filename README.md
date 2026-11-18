@@ -5,6 +5,7 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-Almucero%2Fobservatorio--sismico-blue?logo=github)](https://github.com/Almucero/observatorio-sismico)
 [![Netlify Status](https://img.shields.io/badge/Netlify-Desplegado-00C7B7?logo=netlify)](https://observatorio-sismico-alvaro.netlify.app)
+[![YouTube Video](https://img.shields.io/badge/YouTube-V%C3%ADdeo%20de%20Defensa%20(14:42)-FF0000?logo=youtube)](https://youtu.be/vaq_z8r1Dyc)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-5%20Servicios-2496ED?logo=docker)](compose.yaml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-OpenAPI%203.1-009688?logo=fastapi)](http://127.0.0.1:8000/api/salud)
 [![Angular](https://img.shields.io/badge/Angular-19%20%2B%20Three.js-DD0031?logo=angular)](https://observatorio-sismico-alvaro.netlify.app)
@@ -30,6 +31,7 @@ Para dar respuesta rigurosa a esta cuestión, el sistema combina:
 
 | Recurso | Destino / Acceso | Descripción |
 |---|---|---|
+| **Vídeo de defensa (YouTube)** | [youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc) | Grabación audiovisual completa (14:42, 1.35x) con timestamps por bloques temáticos. |
 | **Repositorio oficial** | [github.com/Almucero/observatorio-sismico](https://github.com/Almucero/observatorio-sismico) | Código fuente, configuración Docker, esquemas SQL y documentación. |
 | **Panel público (Netlify)** | [observatorio-sismico-alvaro.netlify.app](https://observatorio-sismico-alvaro.netlify.app) | SPA pública con globo 3D, filtros, métricas y modo resiliencia (*fallback offline*). |
 | **API pública (ngrok)** | `https://jasmine-unpainted-oat.ngrok-free.dev` | Túnel seguro HTTPS hacia el servicio FastAPI local (`:8000`). |
@@ -37,7 +39,27 @@ Para dar respuesta rigurosa a esta cuestión, el sistema combina:
 
 ---
 
-## 3. Mapa de Navegación Documental
+## 3. Vídeo de Defensa y Demostración en Vivo
+
+[![Vídeo de Defensa del Observatorio de Actividad Sísmica](docs/evidencias/capturas/miniatura-video.jpg)](https://youtu.be/vaq_z8r1Dyc)
+
+> 📺 **Enlace directo a YouTube:** [https://youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc)  
+> ⏱️ **Duración:** 14:42.
+
+### Marcas de tiempo (Índice de contenido)
+
+| Minuto | Bloque temático | Contenido cubierto |
+|:---:|---|---|
+| **`00:00`** | **Introducción y Metodología** | Presentación, estructura del repositorio, portal documental y adaptación de Spec Kit para agentes de IA. |
+| **`02:54`** | **Arquitectura y Pipeline de Datos** | Composición de Docker (5 servicios aislados con Kafka), Productor (feed live y FDSN 2025) y Consumidor (validación, cuarentena, deduplicación y enriquecimiento espacial con Natural Earth). |
+| **`06:27`** | **Persistencia, API y Frontend** | Esquemas SQL en PostgreSQL (separación de histórico y `replay`), API FastAPI, túnel ngrok y frontend en Angular 19 con tolerancia a fallos mediante Netlify Blobs. |
+| **`09:56`** | **Demostración en Vivo (Panel Web)** | Interacción 3D con Three.js, filtrado espacial/temporal, comparativa multi-fuente (sismos en España) y prueba real de resiliencia apagando el stack backend en vivo. |
+| **`12:58`** | **Demostración del Modo Replay** | Activación y ejecución acelerada de simulación histórica en canal y esquema aislados (`replay.*`). |
+| **`13:21`** | **Rúbrica de Evaluación y Cierre** | Justificación detallada de los 5 criterios de la rúbrica oficial (Extracción, Calidad, Modelado, Análisis, Reflexión y Costes) para optar al Sobresaliente. |
+
+---
+
+## 4. Mapa de Navegación Documental
 
 El repositorio cuenta con una documentación estructurada y enlazada para facilitar la revisión del código y la evaluación de cada criterio:
 
@@ -77,7 +99,7 @@ Terremotos/
 
 ---
 
-## 4. Arquitectura y Flujo de Datos
+## 5. Arquitectura y Flujo de Datos
 
 El sistema respeta estrictamente la arquitectura obligatoria de **cinco servicios aislados en Docker Compose** comunicados mediante una red interna, sin requerir clústeres externos pesados:
 
@@ -107,7 +129,7 @@ flowchart LR
 
 ---
 
-## 5. Estructura del Repositorio de Código
+## 6. Estructura del Repositorio de Código
 
 ```
 Terremotos/
@@ -142,7 +164,7 @@ Terremotos/
 
 ---
 
-## 6. Puesta en Marcha (Instrucciones Reproducibles)
+## 7. Puesta en Marcha (Instrucciones Reproducibles)
 
 ### Requisitos Previos
 - **Docker Desktop** (con backend WSL2 habilitado en Windows).
@@ -222,7 +244,7 @@ docker compose down
 
 ---
 
-## 7. Ingesta Histórica y Reproducción Acelerada (Replay)
+## 8. Ingesta Histórica y Reproducción Acelerada (Replay)
 
 ### Carga del histórico de referencia (Año 2025, M $\ge$ 4)
 Para cargar o regenerar los sismos históricos de 2025 de USGS:
@@ -239,7 +261,7 @@ docker compose run --rm --no-deps producer python -m producer.replay --limit 50 
 
 ---
 
-## 8. Mapeo de Evidencias de Evaluación (Rúbrica §13)
+## 9. Mapeo de Evidencias de Evaluación (Rúbrica §13)
 
 A continuación se resume la correspondencia entre los cinco criterios de la rúbrica oficial (nivel **Sobresaliente, 9–10**) y sus evidencias comprobables en el repositorio:
 
@@ -253,7 +275,7 @@ A continuación se resume la correspondencia entre los cinco criterios de la rú
 
 ---
 
-## 9. Guion para la Defensa Oral y Presentación en Vídeo
+## 10. Guion para la Defensa Oral y Presentación en Vídeo
 
 Para la grabación del vídeo o defensa ante el tribunal ([`GUIA-ENTREGABLES.md` §3.3](docs/requisitos/GUIA-ENTREGABLES.md#33-explicación-individual)):
 
@@ -270,7 +292,7 @@ Para la grabación del vídeo o defensa ante el tribunal ([`GUIA-ENTREGABLES.md`
 
 ---
 
-## 10. Licencias y Fuentes de Datos
+## 11. Licencias y Fuentes de Datos
 
 - **Sismicidad:** [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/) (Dominio público, U.S. Government Work).
 - **Fronteras y Geografía:** [Natural Earth](https://www.naturalearthdata.com/) (Dominio público / Public Domain).

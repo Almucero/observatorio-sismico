@@ -121,11 +121,13 @@ Topic `terremotos.replay`, schema `replay`, etiqueta UI `dataMode=replay`.
 
 ## 9. Publicación (defensa)
 
-- Panel: https://observatorio-sismico-alvaro.netlify.app  
-- API (túnel): https://jasmine-unpainted-oat.ngrok-free.dev  
-- Durante la defensa: `docker compose up -d` + `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev` (al utilizar el dominio estático reservado, la URL es fija y permanente).  
-- Captura panel: `docs/evidencias/capturas/panel-netlify.png`
-- Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
+- **Vídeo de defensa en YouTube:** [https://youtu.be/vaq_z8r1Dyc](https://youtu.be/vaq_z8r1Dyc) (14:42, 1.35x, con marcas de tiempo por bloques temáticos).
+- **Miniatura oficial del vídeo:** `docs/evidencias/capturas/miniatura-video.jpg`
+- **Panel público desplegado:** https://observatorio-sismico-alvaro.netlify.app  
+- **API (túnel ngrok):** https://jasmine-unpainted-oat.ngrok-free.dev  
+- **Durante la defensa:** `docker compose up -d` + `ngrok http 8000 --url https://jasmine-unpainted-oat.ngrok-free.dev` (al utilizar el dominio estático reservado, la URL es fija y permanente).  
+- **Captura panel:** `docs/evidencias/capturas/panel-netlify.png`
+- **Resiliencia offline:** Si el túnel o el PC están apagados, el panel marca **Sin respuesta** y muestra la **última lectura buena** guardada en Netlify (función + Blobs del propio sitio; no es un sexto servicio Compose). Cualquier navegador la ve, aunque no haya abierto la web antes.
 
 ### Flujo de datos y decisión técnica para la defensa (explicación individual)
 

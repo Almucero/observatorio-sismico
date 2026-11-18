@@ -2,6 +2,7 @@
 
 | Carpeta / fichero | Qué es |
 |---|---|
+| [**Vídeo de defensa (YouTube)**](https://youtu.be/vaq_z8r1Dyc) | **Grabación audiovisual oficial** (14:42, 1.35x) con timestamps y defensa completa |
 | [`requisitos/`](requisitos/README.md) | **Norma del trabajo** (enunciado, contrato, FAQ, entregables…) |
 | [`memoria.md`](memoria.md) | **Memoria técnica** completa con análisis, modelo, calidad y costes |
 | [`DESPLIEGUE.md`](DESPLIEGUE.md) | Instrucciones de despliegue Netlify y túnel ngrok permanente |
